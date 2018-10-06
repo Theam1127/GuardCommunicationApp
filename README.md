@@ -1,4 +1,4 @@
-The database used by this app is firebase-firestore with the support of node.js for client-server communication. Please refer link below for node.js installation
+The database used by this app is firebase-firestore with the support of node.js to listen to changes in collections of firebase-firestore. Please refer link below for node.js installation
 https://firebase.google.com/docs/functions/firestore-events
 
 The node.js file "NotificationService" is to be copy and paste in firebase project functions folder.
