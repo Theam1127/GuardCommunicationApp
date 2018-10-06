@@ -5,3 +5,6 @@ The node.js file "NotificationService" is to be copy and paste in firebase proje
 After that, please deploy it using "firebase deploy --only functions" in node.js cli
 
 Once everything is set up, the app will be able to receive notification whenever there is an addition of document in AbnormalActivity collection.
+
+
+Next thing to do: indoor locationing
