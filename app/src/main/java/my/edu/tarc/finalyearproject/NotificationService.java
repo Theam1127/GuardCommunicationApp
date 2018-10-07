@@ -7,6 +7,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.PowerManager;
 import android.support.v4.app.NotificationCompat;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
@@ -20,7 +21,7 @@ public class NotificationService extends FirebaseMessagingService {
         String activityStatus = remoteMessage.getData().get("stat");
         int cctvID = Integer.parseInt(remoteMessage.getData().get("cctv"));
 
-        Intent intent = new Intent(this, ActivitiesList.class);
+        Intent intent = new Intent(this, ActivityDetail.class);
         intent.putExtra("activityID", activityID);
         intent.putExtra("imageName", imageName);
         intent.putExtra("activityStatus", activityStatus);
@@ -36,9 +37,14 @@ public class NotificationService extends FirebaseMessagingService {
                 .setSmallIcon(R.drawable.ic_warning_yellow_24dp)
                 .setDefaults(Notification.DEFAULT_LIGHTS)
                 .setVibrate(v)
-                .setSound(uri);
+                .setSound(uri)
+                .setPriority(Notification.PRIORITY_HIGH);
         builder.setContentIntent(pi);
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK |PowerManager.ACQUIRE_CAUSES_WAKEUP |PowerManager.ON_AFTER_RELEASE,"MH24_SCREENLOCK");
+        wl.acquire(10000);
         NotificationManager manager = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
         manager.notify(0, builder.build());
+
     }
 }

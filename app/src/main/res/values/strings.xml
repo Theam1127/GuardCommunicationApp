@@ -22,4 +22,9 @@
     <string name="phone">Phone Number</string>
     <string name="name">Name</string>
     <string name="register_first_time">Register for the First Time</string>
+    <string name="activity_location">Abnormal Activity Location:</string>
+    <string name="detcted_abnornal">Detected Abnormal Activity:</string>
+    <string name="take_action">Take Action</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="api_key">AIzaSyAKpjm1TajoAVqvsaGYBmbVh0LbvkDp80E</string>
 </resources>
