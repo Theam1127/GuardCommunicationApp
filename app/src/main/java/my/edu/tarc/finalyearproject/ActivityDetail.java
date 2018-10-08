@@ -2,7 +2,10 @@ package my.edu.tarc.finalyearproject;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -15,6 +18,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -100,6 +104,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         db = FirebaseFirestore.getInstance();
         pd = new ProgressDialog(ActivityDetail.this);
         pd.setMessage("Loading...");
+        pd.setCancelable(false);
         pd.show();
 
         imageStorage.child(imageName).getDownloadUrl().addOnCompleteListener(new OnCompleteListener<Uri>() {
@@ -238,6 +243,34 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         if (ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
+            LocationManager lm = (LocationManager)getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+            boolean gps_enabled = false;
+            boolean network_enabled = false;
+
+            try {
+                gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
+            } catch(Exception ex) {}
+
+            try {
+                network_enabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+            } catch(Exception ex) {}
+
+            if(!gps_enabled && !network_enabled) {
+                // notify user
+                AlertDialog.Builder dialog = new AlertDialog.Builder(ActivityDetail.this);
+                dialog.setMessage("GPS or Network is not available!");
+                dialog.setPositiveButton("Turn on location setting", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                        // TODO Auto-generated method stub
+                        Intent myIntent = new Intent( Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                        getApplicationContext().startActivity(myIntent);
+                        //get gps
+                    }
+                });
+                dialog.setCancelable(false);
+                dialog.show();
+            }
             LocationServices.FusedLocationApi.requestLocationUpdates(apiClient, locationRequest, this);
         }
     }
@@ -386,8 +419,6 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
 
 
     public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
-
-
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {

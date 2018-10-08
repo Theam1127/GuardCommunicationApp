@@ -47,6 +47,7 @@ public class SignUp extends AppCompatActivity {
             editTextPhone = findViewById(R.id.editTextPhone);
             final ProgressDialog pd = new ProgressDialog(SignUp.this);
             pd.setMessage("Loading...");
+            pd.setCancelable(false);
             pd.show();
             db = FirebaseFirestore.getInstance();
             db.collection("Users").whereEqualTo("registrationToken", registrationToken).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
@@ -64,6 +65,7 @@ public class SignUp extends AppCompatActivity {
                             }
                         });
                         alert.setNegativeButton("Sign Up New Account", null);
+                        alert.setCancelable(false);
                         alert.show();
                     }
                     pd.dismiss();
@@ -121,12 +123,14 @@ public class SignUp extends AppCompatActivity {
                 showInputDialog();
             }
         });
+        errorMessage.setCancelable(false);
         errorMessage.show();
     }
 
     private void showInputDialog(){
         final AlertDialog.Builder inputID = new AlertDialog.Builder(SignUp.this);
         inputID.setMessage("Enter your guard ID:");
+        inputID.setCancelable(false);
         final EditText editTextGuardID = new EditText(SignUp.this);
         editTextGuardID.setInputType(InputType.TYPE_CLASS_TEXT);
         inputID.setView(editTextGuardID);
