@@ -6,5 +6,4 @@ After that, please deploy it using "firebase deploy --only functions" in node.js
 
 Once everything is set up, the app will be able to receive notification whenever there is an addition of document in AbnormalActivity collection.
 
-
-Next thing to do: indoor positioning
+Successfully accomplished positioning of abnormal activity and security guard. Required Google's Direction API which is free to use. Ignore credential restriction for API key as it will cause error when executing the API for second time.
