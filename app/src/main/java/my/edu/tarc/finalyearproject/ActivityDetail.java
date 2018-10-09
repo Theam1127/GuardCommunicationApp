@@ -7,6 +7,7 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -18,6 +19,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -26,6 +28,8 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -49,6 +53,7 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.storage.FirebaseStorage;
@@ -65,12 +70,14 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallback,LocationListener,GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
 
-    TextView textViewActivityID;
+    TextView textViewActivityID,textViewFloorLevel, textViewInstruction;
     ImageView imageViewActivityImage;
+    Button buttonTakeAction;
     StorageReference imageStorage;
     SupportMapFragment mapFragment;
     FirebaseFirestore db;
@@ -84,6 +91,9 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
     GoogleApiClient apiClient;
     LocationRequest locationRequest;
     Marker guardLocationMarker;
+    boolean incharge = false;
+    SharedPreferences preferences;
+    String guardID;
 
 
     @Override
@@ -96,16 +106,24 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         activityID = data.getIntExtra("activityID", 0);
         textViewActivityID = findViewById(R.id.textViewActivityID);
         imageViewActivityImage = findViewById(R.id.imageViewActivityImage);
+        textViewFloorLevel = findViewById(R.id.textViewFloorLevel);
         textViewActivityID.setText("Activity ID: " + activityID);
+        textViewInstruction = findViewById(R.id.textViewInstruction);
         imageStorage = FirebaseStorage.getInstance().getReference();
         mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.fragmentMap);
         positionList = new ArrayList<>();
+        buttonTakeAction = findViewById(R.id.buttonTakeAction);
+
+        preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        guardID = preferences.getString("guardID", "");
 
         db = FirebaseFirestore.getInstance();
         pd = new ProgressDialog(ActivityDetail.this);
         pd.setMessage("Loading...");
         pd.setCancelable(false);
         pd.show();
+
+
 
         imageStorage.child(imageName).getDownloadUrl().addOnCompleteListener(new OnCompleteListener<Uri>() {
             @Override
@@ -122,6 +140,18 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                 latitude = task.getResult().getDocuments().get(0).getDouble("cctvLatitude");
                 longitude = task.getResult().getDocuments().get(0).getDouble("cctvLongtitude");
                 activityLocation = new LatLng(latitude,longitude);
+                textViewFloorLevel.setText("Floor Level: "+task.getResult().getDocuments().get(0).get("cctvFloorLevel"));
+                db.collection("GuardActivity").whereEqualTo("activityID", activityID).whereEqualTo("guardID", guardID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                    @Override
+                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                        if(!task.getResult().isEmpty()) {
+                            incharge = true;
+                            textViewInstruction.setText("Please follow the route to the location of abnormal activity");
+                            textViewInstruction.setVisibility(View.VISIBLE);
+                            buttonTakeAction.setVisibility(View.GONE);
+                        }
+                    }
+                });
                 mapFragment.getMapAsync(ActivityDetail.this);
             }
         });
@@ -153,6 +183,27 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
             buildGoogleApiClient();
             map.setMyLocationEnabled(true);
         }
+
+
+        buttonTakeAction.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pd.show();
+                textViewInstruction.setText("Please follow the route to the location of abnormal activity");
+                textViewInstruction.setVisibility(View.VISIBLE);
+                buttonTakeAction.setVisibility(View.GONE);
+                incharge = true;
+                Map<String,Object> newActivity = new HashMap<>();
+                newActivity.put("activityID", activityID);
+                newActivity.put("dateTime", FieldValue.serverTimestamp());
+                newActivity.put("guardID", guardID);
+                db.collection("GuardActivity").add(newActivity);
+                String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
+                DownloadTask downloadTask = new DownloadTask();
+                downloadTask.execute(url);
+                pd.dismiss();
+            }
+        });
 
         // Creating MarkerOptions
 
@@ -281,15 +332,17 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(latLng);
         markerOptions.title("Current Position");
-        BitmapDrawable img = (BitmapDrawable)getResources().getDrawable(R.drawable.guard);
+        BitmapDrawable img = (BitmapDrawable) getResources().getDrawable(R.drawable.guard);
         Bitmap b = img.getBitmap();
-        Bitmap smallIcon = Bitmap.createScaledBitmap(b, 120,120,false);
+        Bitmap smallIcon = Bitmap.createScaledBitmap(b, 120, 120, false);
         markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallIcon));
-        if(guardLocationMarker==null) {
+        if (guardLocationMarker == null) {
             guardLocationMarker = map.addMarker(markerOptions);
+            map.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+            map.animateCamera(CameraUpdateFactory.zoomTo(16));
             pd.dismiss();
-        }
-        else {
+
+        } else {
             guardLocationMarker.setPosition(latLng);
         }
 
@@ -299,15 +352,14 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         options.position(activityLocation);
         options.title("Location of Abnormal Activity");
         options.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-        map.addMarker(options);
+        map.addMarker(options).showInfoWindow();
 
-        String url = getDirectionsUrl(latLng, activityLocation);
-        DownloadTask downloadTask = new DownloadTask();
-        downloadTask.execute(url);
+        if (incharge) {
+            String url = getDirectionsUrl(latLng, activityLocation);
+            DownloadTask downloadTask = new DownloadTask();
+            downloadTask.execute(url);
+        }
 
-
-        map.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-        map.animateCamera(CameraUpdateFactory.zoomTo(16));
     }
 
 

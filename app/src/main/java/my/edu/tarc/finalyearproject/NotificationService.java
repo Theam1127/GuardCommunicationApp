@@ -28,12 +28,16 @@ import java.util.Date;
 public class NotificationService extends FirebaseMessagingService {
     SharedPreferences preferences;
     FirebaseFirestore db;
+    int activityID;
+    String imageName;
+    String activityStatus;
+    int cctvID;
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
-        final int activityID = Integer.parseInt(remoteMessage.getData().get("id"));
-        final String imageName = remoteMessage.getData().get("img");
-        final String activityStatus = remoteMessage.getData().get("stat");
-        final int cctvID = Integer.parseInt(remoteMessage.getData().get("cctv"));
+        activityID = Integer.parseInt(remoteMessage.getData().get("id"));
+        imageName = remoteMessage.getData().get("img");
+        activityStatus = remoteMessage.getData().get("stat");
+        cctvID = Integer.parseInt(remoteMessage.getData().get("cctv"));
 
 
         db = FirebaseFirestore.getInstance();
@@ -53,42 +57,22 @@ public class NotificationService extends FirebaseMessagingService {
                         Date endDate = end.toDate();
                         Date now = new Date();
                         if (now.getHours()>=startDate.getHours() && now.getHours()<endDate.getHours()) {
-                            String floorLevel = task.getResult().getDocuments().get(0).getString("dutyFloorLevel");
-                            db.collection("CCTV").whereEqualTo("cctvFloorLevel", floorLevel).whereEqualTo("cctvID", cctvID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                                @Override
-                                public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                                    if (!task.getResult().isEmpty()) {
-                                        {
-                                            long[] v = {500, 600000};
-                                            Uri uri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + getApplicationContext().getPackageName() + "/" + R.raw.alarm);
-                                            NotificationCompat.Builder builder = new NotificationCompat.Builder(NotificationService.this)
-                                                    .setContentTitle("Abnormal Activity Detected!")
-                                                    .setContentText("Check it now!")
-                                                    .setWhen(System.currentTimeMillis())
-                                                    .setAutoCancel(true)
-                                                    .setSmallIcon(R.drawable.ic_warning_yellow_24dp)
-                                                    .setDefaults(Notification.DEFAULT_LIGHTS)
-                                                    .setVibrate(v)
-                                                    .setSound(uri)
-                                                    .setPriority(Notification.PRIORITY_HIGH);
-                                            Intent intent = new Intent(NotificationService.this, ActivityDetail.class);
-                                            intent.putExtra("activityID", activityID);
-                                            intent.putExtra("imageName", imageName);
-                                            intent.putExtra("activityStatus", activityStatus);
-                                            intent.putExtra("cctvID", cctvID);
-                                            PendingIntent pi = PendingIntent.getActivity(NotificationService.this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
-
-                                            builder.setContentIntent(pi);
-                                            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-                                            PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "MH24_SCREENLOCK");
-                                            wl.acquire(10000);
-                                            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                                            manager.notify(0, builder.build());
-
+                            if(activityStatus.equals("Require Further Action")){
+                                sendNotification();
+                            }
+                            else {
+                                String floorLevel = task.getResult().getDocuments().get(0).getString("dutyFloorLevel");
+                                db.collection("CCTV").whereEqualTo("cctvFloorLevel", floorLevel).whereEqualTo("cctvID", cctvID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                    @Override
+                                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                        if (!task.getResult().isEmpty()) {
+                                            {
+                                                sendNotification();
+                                            }
                                         }
                                     }
-                                }
-                            });
+                                });
+                            }
                         }
                     }
 
@@ -100,5 +84,33 @@ public class NotificationService extends FirebaseMessagingService {
 
 
 
+    }
+
+    private void sendNotification(){
+        long[] v = {500, 600000};
+        Uri uri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + getApplicationContext().getPackageName() + "/" + R.raw.alarm);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(NotificationService.this)
+                .setContentTitle("Abnormal Activity Detected!")
+                .setContentText("Check it now!")
+                .setWhen(System.currentTimeMillis())
+                .setAutoCancel(true)
+                .setSmallIcon(R.drawable.ic_warning_yellow_24dp)
+                .setDefaults(Notification.DEFAULT_LIGHTS)
+                .setVibrate(v)
+                .setSound(uri)
+                .setPriority(Notification.PRIORITY_HIGH);
+        Intent intent = new Intent(NotificationService.this, ActivityDetail.class);
+        intent.putExtra("activityID", activityID);
+        intent.putExtra("imageName", imageName);
+        intent.putExtra("activityStatus", activityStatus);
+        intent.putExtra("cctvID", cctvID);
+        PendingIntent pi = PendingIntent.getActivity(NotificationService.this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
+
+        builder.setContentIntent(pi);
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "MH24_SCREENLOCK");
+        wl.acquire(10000);
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        manager.notify(0, builder.build());
     }
 }
