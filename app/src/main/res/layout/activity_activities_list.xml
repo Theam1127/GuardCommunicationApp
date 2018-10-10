@@ -39,7 +39,7 @@
     <Spinner
         android:id="@+id/spinnerFilterStatus"
         android:layout_width="200dp"
-        android:layout_height="25dp"
+        android:layout_height="31dp"
         android:layout_marginLeft="12dp"
         android:layout_marginStart="12dp"
         android:layout_marginTop="8dp"

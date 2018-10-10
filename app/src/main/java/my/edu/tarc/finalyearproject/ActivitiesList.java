@@ -53,7 +53,7 @@ public class ActivitiesList extends AppCompatActivity {
         filterStatus.add("Unsolved/Need Backup");
         filterStatus.add("Processing");
         filterStatus.add("Resolved");
-        ArrayAdapter spinnerAdapter = new ArrayAdapter(ActivitiesList.this, android.R.layout.simple_dropdown_item_1line, filterStatus);
+        ArrayAdapter spinnerAdapter = new ArrayAdapter(ActivitiesList.this, R.layout.spinner_items, filterStatus);
         filter.setAdapter(spinnerAdapter);
         pd = new ProgressDialog(ActivitiesList.this);
         pd.setCancelable(false);

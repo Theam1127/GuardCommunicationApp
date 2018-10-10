@@ -28,6 +28,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.iid.FirebaseInstanceId;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -58,8 +59,12 @@ public class SignUp extends AppCompatActivity {
         registrationToken = FirebaseInstanceId.getInstance().getToken();
         scheduleList = findViewById(R.id.spinner);
         schedules = new ArrayList<>();
-        scheduleAdapter = new ArrayAdapter(getApplicationContext(), android.R.layout.simple_dropdown_item_1line, schedules);
+        scheduleAdapter = new ArrayAdapter(getApplicationContext(), R.layout.spinner_items, schedules);
         scheduleList.setAdapter(scheduleAdapter);
+        buttonSignUp = findViewById(R.id.buttonRegister);
+        editTextUsername = findViewById(R.id.editTextUsername);
+        editTextName = findViewById(R.id.editTextName);
+        editTextPhone = findViewById(R.id.editTextPhone);
 
         db = FirebaseFirestore.getInstance();
         db.collection("Schedule").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
@@ -72,7 +77,10 @@ public class SignUp extends AppCompatActivity {
                         Timestamp dutyEnd = doc.getTimestamp("dutyEnd");
                         Date dateStart = dutyStart.toDate();
                         Date dateEnd = dutyEnd.toDate();
-                        String schedule = dateStart.getHours()+":"+dateStart.getMinutes()+" - "+dateEnd.getHours()+":"+dateEnd.getMinutes();
+                        SimpleDateFormat df = new SimpleDateFormat("hh:mm a");
+                        String start = df.format(dateStart);
+                        String end = df.format(dateEnd);
+                        String schedule = start+" - "+end;
                         schedules.add(schedule);
                         scheduleAdapter.notifyDataSetChanged();
                     }
@@ -82,10 +90,6 @@ public class SignUp extends AppCompatActivity {
         });
 
         if (guardID.equals("")) {
-            buttonSignUp = findViewById(R.id.buttonRegister);
-            editTextUsername = findViewById(R.id.editTextUsername);
-            editTextName = findViewById(R.id.editTextName);
-            editTextPhone = findViewById(R.id.editTextPhone);
             final ProgressDialog pd = new ProgressDialog(SignUp.this);
             pd.setMessage("Loading...");
             pd.setCancelable(false);
@@ -115,14 +119,12 @@ public class SignUp extends AppCompatActivity {
             buttonSignUp.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    if(editTextUsername.getText().equals(""))
+                    if(editTextUsername.getText().toString().equals(""))
                         editTextUsername.setError("Guard ID is required!");
-                    else if(editTextPhone.getText().equals(""))
+                    else if(editTextPhone.getText().toString().equals(""))
                         editTextPhone.setError("Phone is required!");
-                    else if(editTextName.getText().equals(""))
+                    else if(editTextName.getText().toString().equals(""))
                         editTextName.setError("Name is required!");
-                    else if(scheduleList.isSelected()==false)
-                        Toast.makeText(SignUp.this, "Please select schedule!", Toast.LENGTH_SHORT).show();
                     else {
                         final String username = editTextUsername.getText().toString();
                         final String phone = editTextPhone.getText().toString();
