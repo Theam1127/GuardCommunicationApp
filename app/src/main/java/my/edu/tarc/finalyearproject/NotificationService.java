@@ -16,16 +16,11 @@ import android.support.v4.app.NotificationCompat;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.Timestamp;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 
 public class NotificationService extends FirebaseMessagingService {
@@ -84,9 +79,11 @@ public class NotificationService extends FirebaseMessagingService {
             }
         });
 
+    }
 
-
-
+    @Override
+    public void onNewToken(String s) {
+        super.onNewToken(s);
     }
 
     private void sendNotification(){

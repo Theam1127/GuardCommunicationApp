@@ -1,32 +1,34 @@
 package my.edu.tarc.finalyearproject;
 
-import android.app.ProgressDialog;
+import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.text.InputType;
+import android.util.Log;
 import android.view.View;
-import android.widget.Adapter;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ListView;
 import android.widget.Spinner;
-import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.firebase.iid.InstanceIdResult;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -44,19 +46,27 @@ public class SignUp extends AppCompatActivity {
     boolean existingAcc = false;
     String docID;
     AlertDialog.Builder alert;
-    String registrationToken;
     Spinner scheduleList;
     List<String> schedules;
     ArrayAdapter scheduleAdapter;
-
+    String registrationToken;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sign_up);
 
+        db = FirebaseFirestore.getInstance();
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         String guardID = preferences.getString("guardID", "");
-        registrationToken = FirebaseInstanceId.getInstance().getToken();
+
+        FirebaseInstanceId.getInstance().getInstanceId().addOnSuccessListener( SignUp.this,  new OnSuccessListener<InstanceIdResult>() {
+            @Override
+            public void onSuccess(InstanceIdResult instanceIdResult) {
+                registrationToken = instanceIdResult.getToken();
+                Log.e("newToken",registrationToken);
+            }
+        });
+
         scheduleList = findViewById(R.id.spinner);
         schedules = new ArrayList<>();
         scheduleAdapter = new ArrayAdapter(getApplicationContext(), R.layout.spinner_items, schedules);
@@ -66,7 +76,7 @@ public class SignUp extends AppCompatActivity {
         editTextName = findViewById(R.id.editTextName);
         editTextPhone = findViewById(R.id.editTextPhone);
 
-        db = FirebaseFirestore.getInstance();
+
         db.collection("Schedule").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
             @Override
             public void onComplete(@NonNull Task<QuerySnapshot> task) {
@@ -90,40 +100,29 @@ public class SignUp extends AppCompatActivity {
         });
 
         if (guardID.equals("")) {
-            final ProgressDialog pd = new ProgressDialog(SignUp.this);
-            pd.setMessage("Loading...");
-            pd.setCancelable(false);
-            pd.show();
-
-            db.collection("Users").whereEqualTo("registrationToken", registrationToken).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+            alert = new AlertDialog.Builder(SignUp.this);
+            alert.setMessage("Login to your account?");
+            alert.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                 @Override
-                public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                    if(!task.getResult().isEmpty()){
-                        existingAcc=true;
-                        docID = task.getResult().getDocuments().get(0).getId();
-                        alert = new AlertDialog.Builder(SignUp.this);
-                        alert.setMessage("This phone has been registered in our database. Do you want to login your account?");
-                        alert.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialogInterface, int i) {
-                                showInputDialog();
-                            }
-                        });
-                        alert.setNegativeButton("Sign Up New Account", null);
-                        alert.setCancelable(false);
-                        alert.show();
-                    }
-                    pd.dismiss();
+                public void onClick(DialogInterface dialogInterface, int i) {
+                    showInputDialog();
                 }
             });
+            alert.setNegativeButton("Sign Up New Account", null);
+            alert.setCancelable(false);
+            alert.show();
+
+            checkLocationPermission();
+
+
             buttonSignUp.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    if(editTextUsername.getText().toString().equals(""))
+                    if (editTextUsername.getText().toString().equals(""))
                         editTextUsername.setError("Guard ID is required!");
-                    else if(editTextPhone.getText().toString().equals(""))
+                    else if (editTextPhone.getText().toString().equals(""))
                         editTextPhone.setError("Phone is required!");
-                    else if(editTextName.getText().toString().equals(""))
+                    else if (editTextName.getText().toString().equals(""))
                         editTextName.setError("Name is required!");
                     else {
                         final String username = editTextUsername.getText().toString();
@@ -142,10 +141,7 @@ public class SignUp extends AppCompatActivity {
                                     newGuard.put("guardName", guardname);
                                     newGuard.put("registrationToken", registrationToken);
                                     newGuard.put("scheduleID", scheduleID);
-                                    if (existingAcc)
-                                        db.collection("Users").document(docID).update(newGuard);
-                                    else
-                                        db.collection("Users").add(newGuard);
+                                    db.collection("Users").add(newGuard);
                                     SharedPreferences.Editor editor = preferences.edit();
                                     editor.putString("guardID", username);
                                     editor.apply();
@@ -169,7 +165,7 @@ public class SignUp extends AppCompatActivity {
 
     private void showErrorDialog(){
         AlertDialog.Builder errorMessage = new AlertDialog.Builder(SignUp.this);
-        errorMessage.setMessage("Invalid guard ID!").setPositiveButton("Try Again", new DialogInterface.OnClickListener() {
+        errorMessage.setMessage("Invalid guard ID!").setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialogInterface, int i) {
                 showInputDialog();
@@ -190,7 +186,7 @@ public class SignUp extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialogInterface, int i) {
                 final String guardID = editTextGuardID.getText().toString();
-                db.collection("Users").whereEqualTo("guardID", guardID).whereEqualTo("registrationToken", registrationToken).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                db.collection("Users").whereEqualTo("guardID", guardID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                     @Override
                     public void onComplete(@NonNull Task<QuerySnapshot> task) {
                         if(task.getResult().isEmpty()) {
@@ -200,9 +196,20 @@ public class SignUp extends AppCompatActivity {
                             SharedPreferences.Editor editor = preferences.edit();
                             editor.putString("guardID", guardID);
                             editor.apply();
-                            Intent intent = new Intent(SignUp.this, ActivitiesList.class);
-                            startActivity(intent);
-                            finish();
+                            if(!registrationToken.equals(task.getResult().getDocuments().get(0).getString("registrationToken"))) {
+                                String docID = task.getResult().getDocuments().get(0).getId();
+                                Map<String, Object> newToken = new HashMap<>();
+                                newToken.put("registrationToken", registrationToken);
+                                db.collection("Users").document(docID).update(newToken).addOnCompleteListener(new OnCompleteListener<Void>() {
+                                    @Override
+                                    public void onComplete(@NonNull Task<Void> task) {
+                                        Intent intent = new Intent(SignUp.this, ActivitiesList.class);
+                                        startActivity(intent);
+                                        finish();
+                                    }
+                                });
+                            }
+
                         }
                     }
                 });
@@ -216,4 +223,54 @@ public class SignUp extends AppCompatActivity {
         });
         inputID.show();
     }
+
+    public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
+
+    public boolean checkLocationPermission() {
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)) {
+
+                // Show an explanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("Permission to access location")
+                        .setMessage("Permission to access location")
+                        .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                                //Prompt the user once explanation has been shown
+                                ActivityCompat.requestPermissions(SignUp.this,
+                                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                                        MY_PERMISSIONS_REQUEST_LOCATION);
+                            }
+                        })
+                        .create()
+                        .show();
+
+
+            } else {
+                // No explanation needed, we can request the permission.
+                ActivityCompat.requestPermissions(SignUp.this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        MY_PERMISSIONS_REQUEST_LOCATION);
+            }
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,String permissions[], int[] grantResults) {
+        return;
+    }
+
+
+
 }

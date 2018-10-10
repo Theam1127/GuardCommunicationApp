@@ -1,7 +1,6 @@
 package my.edu.tarc.finalyearproject;
 
 import android.Manifest;
-import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -13,19 +12,17 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.location.Location;
-import com.google.android.gms.location.LocationListener;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -38,6 +35,7 @@ import android.widget.Toast;
 import com.bumptech.glide.Glide;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -57,7 +55,6 @@ import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
@@ -75,9 +72,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallback,LocationListener,GoogleApiClient.ConnectionCallbacks,
+public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,LocationListener,GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
-    TextView textViewActivityID,textViewFloorLevel, textViewInstruction;
+    TextView textViewActivityID, textViewFloorLevel, textViewInstruction;
     ImageView imageViewActivityImage;
     Button buttonTakeAction;
     StorageReference imageStorage;
@@ -110,6 +107,12 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         cctvID = data.getIntExtra("cctvID", 0);
         activityID = data.getIntExtra("activityID", 0);
         activityStatus = data.getStringExtra("activityStatus");
+
+        if (ContextCompat.checkSelfPermission(ActivityDetail.this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this,"Please grant location permission", Toast.LENGTH_SHORT).show();
+        }
 
         db = FirebaseFirestore.getInstance();
         textViewActivityID = findViewById(R.id.textViewActivityID);
@@ -174,9 +177,11 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                     db.collection("Users").whereEqualTo("guardID", doc.getString("guardID")).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                         @Override
                         public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                            Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardID"), task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
-                            guardList.add(guard);
-                            adapter.notifyDataSetChanged();
+                            if (!task.getResult().isEmpty()) {
+                                Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardID"), task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
+                                guardList.add(guard);
+                                adapter.notifyDataSetChanged();
+                            }
                         }
                     });
                 }
@@ -230,8 +235,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                 buildGoogleApiClient();
                 map.setMyLocationEnabled(true);
             }
-        }
-        else {
+        } else {
             buildGoogleApiClient();
             map.setMyLocationEnabled(true);
         }
@@ -251,31 +255,41 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                         intent.putExtra("activityStatus", activityStatus);
                         startActivity(intent);
                     } else {
-                        pd.show();
-                        textViewInstruction.setText("Please follow the route to the location of abnormal activity");
-                        textViewInstruction.setVisibility(View.VISIBLE);
-                        buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
-                        buttonTakeAction.setText("Update Status");
-                        incharge = true;
-                        Map<String, Object> newActivity = new HashMap<>();
-                        newActivity.put("activityID", activityID);
-                        newActivity.put("dateTime", FieldValue.serverTimestamp());
-                        newActivity.put("guardID", guardID);
-                        db.collection("GuardActivity").add(newActivity);
-                        db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                            @Override
-                            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                                Map<String, Object> updateStatus = new HashMap<>();
-                                updateStatus.put("activityStatus", "Processing");
-                                String docID = task.getResult().getDocuments().get(0).getId();
-                                db.collection("AbnormalActivity").document(docID).update(updateStatus);
-                                activityStatus="Processing";
+                        if (ContextCompat.checkSelfPermission(ActivityDetail.this,
+                                Manifest.permission.ACCESS_FINE_LOCATION)
+                                == PackageManager.PERMISSION_GRANTED) {
+                            pd.show();
+                            textViewInstruction.setText("Please follow the route to the location of abnormal activity");
+                            textViewInstruction.setVisibility(View.VISIBLE);
+                            buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
+                            buttonTakeAction.setText("Update Status");
+                            incharge = true;
+                            Map<String, Object> newActivity = new HashMap<>();
+                            newActivity.put("activityID", activityID);
+                            newActivity.put("dateTime", FieldValue.serverTimestamp());
+                            newActivity.put("guardID", guardID);
+                            db.collection("GuardActivity").add(newActivity);
+                            db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                @Override
+                                public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                    Map<String, Object> updateStatus = new HashMap<>();
+                                    updateStatus.put("activityStatus", "Processing");
+                                    String docID = task.getResult().getDocuments().get(0).getId();
+                                    db.collection("AbnormalActivity").document(docID).update(updateStatus);
+                                    activityStatus = "Processing";
+                                }
+                            });
+                            if (ContextCompat.checkSelfPermission(ActivityDetail.this,
+                                    Manifest.permission.ACCESS_FINE_LOCATION)
+                                    != PackageManager.PERMISSION_GRANTED) {
+                                String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
+                                DownloadTask downloadTask = new DownloadTask();
+                                downloadTask.execute(url);
                             }
-                        });
-                        String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
-                        DownloadTask downloadTask = new DownloadTask();
-                        downloadTask.execute(url);
-                        pd.dismiss();
+                            pd.dismiss();
+                        }
+                        else
+                            Toast.makeText(ActivityDetail.this, "Please permit location permission!",Toast.LENGTH_SHORT).show();
                     }
                 }
             }
@@ -290,8 +304,6 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                 .build();
         apiClient.connect();
     }
-
-
 
 
     private String getDirectionsUrl(LatLng origin, LatLng dest) {
@@ -312,7 +324,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         String output = "json";
 
         // Building the url to the web service
-        String url = "https://maps.googleapis.com/maps/api/directions/" + output + "?" + parameters+"&key="+getString(R.string.google_maps_key);
+        String url = "https://maps.googleapis.com/maps/api/directions/" + output + "?" + parameters + "&key=" + getString(R.string.google_maps_key);
 
         return url;
     }
@@ -362,22 +374,27 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         locationRequest.setInterval(1500);
         locationRequest.setFastestInterval(1500);
         locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
-        if (ContextCompat.checkSelfPermission(this,
+
+
+
+        if (ContextCompat.checkSelfPermission(ActivityDetail.this,
                 Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
-            LocationManager lm = (LocationManager)getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+            LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
             boolean gps_enabled = false;
             boolean network_enabled = false;
 
             try {
                 gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
-            } catch(Exception ex) {}
+            } catch (Exception ex) {
+            }
 
             try {
                 network_enabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-            } catch(Exception ex) {}
+            } catch (Exception ex) {
+            }
 
-            if(!gps_enabled && !network_enabled) {
+            if (!gps_enabled && !network_enabled) {
                 // notify user
                 AlertDialog.Builder dialog = new AlertDialog.Builder(ActivityDetail.this);
                 dialog.setMessage("GPS or Network is not available!");
@@ -385,7 +402,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                     @Override
                     public void onClick(DialogInterface paramDialogInterface, int paramInt) {
                         // TODO Auto-generated method stub
-                        Intent myIntent = new Intent( Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                        Intent myIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
                         getApplicationContext().startActivity(myIntent);
                         //get gps
                     }
@@ -426,15 +443,22 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
 
         if (incharge && !resolved) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-            if(cm.getActiveNetworkInfo()==null)
-                Toast.makeText(ActivityDetail.this,"Please turn on network connection!",Toast.LENGTH_SHORT).show();
+            if (cm.getActiveNetworkInfo() == null)
+                Toast.makeText(ActivityDetail.this, "Please turn on network connection!", Toast.LENGTH_SHORT).show();
             else {
-                String url = getDirectionsUrl(latLng, activityLocation);
-                DownloadTask downloadTask = new DownloadTask();
-                downloadTask.execute(url);
+                if (ContextCompat.checkSelfPermission(this,
+                        Manifest.permission.ACCESS_FINE_LOCATION)
+                        != PackageManager.PERMISSION_GRANTED)
+                    Toast.makeText(ActivityDetail.this, "Please permit location permission!", Toast.LENGTH_SHORT).show();
+                else {
+                    String url = getDirectionsUrl(latLng, activityLocation);
+                    DownloadTask downloadTask = new DownloadTask();
+                    downloadTask.execute(url);
+                }
             }
         }
     }
+
 
 
     @Override
@@ -542,29 +566,13 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         }
     }
 
-
-
-    public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
-
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case MY_PERMISSIONS_REQUEST_LOCATION:
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    if (ContextCompat.checkSelfPermission(this,
-                            Manifest.permission.ACCESS_FINE_LOCATION)
-                            == PackageManager.PERMISSION_GRANTED) {
-
-                        if (apiClient == null) {
-                            buildGoogleApiClient();
-                        }
-                        map.setMyLocationEnabled(true);
-                    }
-                } else {
-                    // Permission denied, Disable the functionality that depends on this permission.
-                    Toast.makeText(this, "permission denied", Toast.LENGTH_LONG).show();
-                }
-                break;
-        }
+    protected void onResume() {
+        super.onResume();
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED)
+            if(map!=null)
+                buildGoogleApiClient();
     }
 }

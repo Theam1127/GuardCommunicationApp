@@ -3,9 +3,6 @@ package my.edu.tarc.finalyearproject;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.graphics.drawable.ColorDrawable;
-import android.support.annotation.NonNull;
-import android.support.v4.app.NotificationCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
@@ -13,21 +10,18 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.Spinner;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QuerySnapshot;
-import com.google.firebase.storage.FirebaseStorage;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.Nullable;
 
-public class ActivitiesList extends AppCompatActivity {
+public class ActivitiesList extends MenuActivity {
     ListView activitiesList;
     ActivityListAdapter adapter;
     List<Activity> activities, displayList;
@@ -40,6 +34,8 @@ public class ActivitiesList extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_activities_list);
+
+
 
         activitiesList = findViewById(R.id.listViewActivities);
         activitiesList.setDivider(new ColorDrawable(0xFF000000));
@@ -152,4 +148,7 @@ public class ActivitiesList extends AppCompatActivity {
         adapter = new ActivityListAdapter(displayList, ActivitiesList.this);
         activitiesList.setAdapter(adapter);
     }
+
+
+
 }

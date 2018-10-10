@@ -33,7 +33,9 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".NotificationService">
+        <service
+            android:name=".NotificationService"
+            android:stopWithTask="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
@@ -52,7 +54,9 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/api_key" />
 
-        <activity android:name=".ActivityStatus"></activity>
+        <activity android:name=".ActivityStatus" />
+        <activity
+            android:name=".MenuActivity"></activity>
     </application>
 
 </manifest>
