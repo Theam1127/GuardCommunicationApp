@@ -174,7 +174,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                     db.collection("Users").whereEqualTo("guardID", doc.getString("guardID")).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                         @Override
                         public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                            Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
+                            Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardID"), task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
                             guardList.add(guard);
                             adapter.notifyDataSetChanged();
                         }
@@ -201,6 +201,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                             buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
                             buttonTakeAction.setText("Update Status");
                         }
+                        pd.dismiss();
                     }
                 });
                 mapFragment.getMapAsync(ActivityDetail.this);
@@ -253,7 +254,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                         pd.show();
                         textViewInstruction.setText("Please follow the route to the location of abnormal activity");
                         textViewInstruction.setVisibility(View.VISIBLE);
-                        buttonTakeAction.setBackgroundColor(Color.GREEN);
+                        buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
                         buttonTakeAction.setText("Update Status");
                         incharge = true;
                         Map<String, Object> newActivity = new HashMap<>();
@@ -264,10 +265,11 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                         db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                             @Override
                             public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                                Map<String, Object> activityStatus = new HashMap<>();
-                                activityStatus.put("activityStatus", "Processing");
+                                Map<String, Object> updateStatus = new HashMap<>();
+                                updateStatus.put("activityStatus", "Processing");
                                 String docID = task.getResult().getDocuments().get(0).getId();
-                                db.collection("AbnormalActivity").document(docID).update(activityStatus);
+                                db.collection("AbnormalActivity").document(docID).update(updateStatus);
+                                activityStatus="Processing";
                             }
                         });
                         String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
@@ -409,7 +411,6 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
             guardLocationMarker = map.addMarker(markerOptions);
             map.moveCamera(CameraUpdateFactory.newLatLng(activityLocation));
             map.animateCamera(CameraUpdateFactory.zoomTo(16));
-            pd.dismiss();
 
         } else {
             guardLocationMarker.setPosition(latLng);

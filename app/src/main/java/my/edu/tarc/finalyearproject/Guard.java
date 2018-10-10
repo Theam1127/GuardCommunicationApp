@@ -1,12 +1,22 @@
 package my.edu.tarc.finalyearproject;
 
 public class Guard {
+    String guardID;
     String guardName;
     String phoneNumber;
 
-    public Guard(String guardName, String phoneNumber) {
+    public Guard(String guardID, String guardName, String phoneNumber) {
+        this.guardID=guardID;
         this.guardName = guardName;
         this.phoneNumber = phoneNumber;
+    }
+
+    public String getGuardID() {
+        return guardID;
+    }
+
+    public void setGuardID(String guardID) {
+        this.guardID = guardID;
     }
 
     public String getGuardName() {

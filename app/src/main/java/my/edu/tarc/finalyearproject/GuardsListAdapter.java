@@ -2,7 +2,10 @@ package my.edu.tarc.finalyearproject;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.net.Uri;
+import android.preference.PreferenceManager;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -55,6 +58,12 @@ public class GuardsListAdapter extends BaseAdapter implements ListAdapter {
                 context.startActivity(intent);
             }
         });
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        String currentGuard = preferences.getString("guardID", "");
+        if(guardList.get(i).getGuardID().equals(currentGuard)) {
+            buttonCall.setBackgroundColor(Color.GRAY);
+            buttonCall.setClickable(false);
+        }
         return view;
     }
 }

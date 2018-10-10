@@ -58,11 +58,11 @@ public class ActivitiesList extends AppCompatActivity {
         pd = new ProgressDialog(ActivitiesList.this);
         pd.setCancelable(false);
         pd.setMessage("Loading...");
-        pd.show();
 
         db.collection("AbnormalActivity").orderBy("activityID").addSnapshotListener(new EventListener<QuerySnapshot>() {
             @Override
             public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
+                pd.show();
                 activities.clear();
                 if(!queryDocumentSnapshots.isEmpty()) {
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
@@ -71,6 +71,7 @@ public class ActivitiesList extends AppCompatActivity {
                     }
                     //sort
                     int position = 0;
+
                     for (int a = 0; a < activities.size(); a++) {
                         if (activities.get(a).getActivityStatus().equals("Need Backup") || activities.get(a).getActivityStatus().equals("Unsolved")) {
                             Activity temp = activities.get(position);
@@ -95,26 +96,36 @@ public class ActivitiesList extends AppCompatActivity {
                             position++;
                         }
                     }
-                }
-                adapter = new ActivityListAdapter(activities, ActivitiesList.this);
-                activitiesList.setAdapter(adapter);
-                if(filter.getSelectedItemPosition()!=0){
+
                     filterActivities(filter.getSelectedItemPosition(), filter.getSelectedItem().toString());
+
+                    activitiesList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                        @Override
+                        public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                            Intent intent = new Intent(ActivitiesList.this,ActivityDetail.class);
+                            intent.putExtra("activityID", displayList.get(i).getActivityID());
+                            intent.putExtra("imageName", displayList.get(i).getActivityImage());
+                            intent.putExtra("activityStatus", displayList.get(i).getActivityStatus());
+                            intent.putExtra("cctvID", displayList.get(i).getCctvID());
+                            startActivity(intent);
+                        }
+                    });
+
+                    filter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                        @Override
+                        public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                            filterActivities(i,adapterView.getSelectedItem().toString());
+                        }
+
+                        @Override
+                        public void onNothingSelected(AdapterView<?> adapterView) {
+
+                        }
+                    });
+
+
                 }
-
                 pd.dismiss();
-
-                filter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                        filterActivities(i,adapterView.getSelectedItem().toString());
-                    }
-
-                    @Override
-                    public void onNothingSelected(AdapterView<?> adapterView) {
-
-                    }
-                });
             }
         });
 
@@ -122,17 +133,6 @@ public class ActivitiesList extends AppCompatActivity {
 
 
 
-        activitiesList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                Intent intent = new Intent(ActivitiesList.this,ActivityDetail.class);
-                intent.putExtra("activityID", displayList.get(i).getActivityID());
-                intent.putExtra("imageName", displayList.get(i).getActivityImage());
-                intent.putExtra("activityStatus", displayList.get(i).getActivityStatus());
-                intent.putExtra("cctvID", displayList.get(i).getCctvID());
-                startActivity(intent);
-            }
-        });
     }
 
     public void filterActivities(int position, String selectedItem){
