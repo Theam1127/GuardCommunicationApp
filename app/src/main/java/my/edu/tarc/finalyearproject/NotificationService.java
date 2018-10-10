@@ -22,7 +22,10 @@ import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
+import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 
 public class NotificationService extends FirebaseMessagingService {
@@ -51,12 +54,12 @@ public class NotificationService extends FirebaseMessagingService {
                     @Override
                     public void onComplete(@NonNull Task<QuerySnapshot> task) {
                         Timestamp start = task.getResult().getDocuments().get(0).getTimestamp("dutyStart");
-                        Timestamp end = task.getResult().getDocuments().get(0).getTimestamp("dutyEnd");
+                        int duration = Integer.parseInt(task.getResult().getDocuments().get(0).get("dutyDuration").toString());
 
                         Date startDate = start.toDate();
-                        Date endDate = end.toDate();
                         Date now = new Date();
-                        if (now.getHours()>=startDate.getHours() && now.getHours()<endDate.getHours()) {
+
+                        if (now.getHours() >= startDate.getHours() && now.getHours()<=startDate.getHours()+duration) {
                             if(activityStatus.equals("Require Further Action")){
                                 sendNotification();
                             }

@@ -1,7 +1,7 @@
 package my.edu.tarc.finalyearproject;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -12,10 +12,10 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
-import android.location.Criteria;
 import android.location.Location;
 import com.google.android.gms.location.LocationListener;
 import android.location.LocationManager;
+import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
@@ -23,7 +23,6 @@ import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -31,12 +30,13 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApi;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
@@ -49,12 +49,15 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
@@ -74,7 +77,6 @@ import java.util.Map;
 
 public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallback,LocationListener,GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
-
     TextView textViewActivityID,textViewFloorLevel, textViewInstruction;
     ImageView imageViewActivityImage;
     Button buttonTakeAction;
@@ -83,7 +85,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
     FirebaseFirestore db;
     private double longitude, latitude;
     LatLng activityLocation;
-    String imageName;
+    String imageName, activityStatus;
     int cctvID, activityID;
     ProgressDialog pd;
     GoogleMap map;
@@ -91,10 +93,13 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
     GoogleApiClient apiClient;
     LocationRequest locationRequest;
     Marker guardLocationMarker;
-    boolean incharge = false;
+    boolean incharge = false, resolved = false;
     SharedPreferences preferences;
     String guardID;
-
+    ListView guardListView;
+    GuardsListAdapter adapter;
+    List<Guard> guardList;
+    ScrollView scrollView;
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
@@ -104,25 +109,39 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         imageName = data.getStringExtra("imageName");
         cctvID = data.getIntExtra("cctvID", 0);
         activityID = data.getIntExtra("activityID", 0);
+        activityStatus = data.getStringExtra("activityStatus");
+
+        db = FirebaseFirestore.getInstance();
         textViewActivityID = findViewById(R.id.textViewActivityID);
         imageViewActivityImage = findViewById(R.id.imageViewActivityImage);
         textViewFloorLevel = findViewById(R.id.textViewFloorLevel);
         textViewActivityID.setText("Activity ID: " + activityID);
         textViewInstruction = findViewById(R.id.textViewInstruction);
         imageStorage = FirebaseStorage.getInstance().getReference();
-        mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.fragmentMap);
+        mapFragment = (MyMapView) getSupportFragmentManager().findFragmentById(R.id.fragmentMap);
+        scrollView = findViewById(R.id.scrollView);
+        ((MyMapView) getSupportFragmentManager().findFragmentById(R.id.fragmentMap)).setListener(new MyMapView.OnTouchListener() {
+            @Override
+            public void onTouch() {
+                scrollView.requestDisallowInterceptTouchEvent(true);
+            }
+        });
         positionList = new ArrayList<>();
         buttonTakeAction = findViewById(R.id.buttonTakeAction);
+        guardListView = findViewById(R.id.guardsList);
+        guardList = new ArrayList<>();
+        adapter = new GuardsListAdapter(guardList, ActivityDetail.this);
+        guardListView.setAdapter(adapter);
+
 
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         guardID = preferences.getString("guardID", "");
 
-        db = FirebaseFirestore.getInstance();
+
         pd = new ProgressDialog(ActivityDetail.this);
         pd.setMessage("Loading...");
         pd.setCancelable(false);
         pd.show();
-
 
 
         imageStorage.child(imageName).getDownloadUrl().addOnCompleteListener(new OnCompleteListener<Uri>() {
@@ -134,21 +153,53 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
                         .into(imageViewActivityImage);
             }
         });
+
+        db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).addSnapshotListener(new EventListener<QuerySnapshot>() {
+            @Override
+            public void onEvent(@javax.annotation.Nullable QuerySnapshot queryDocumentSnapshots, @javax.annotation.Nullable FirebaseFirestoreException e) {
+                if (queryDocumentSnapshots.getDocuments().get(0).get("activityStatus").toString().equals("Resolved")) {
+                    resolved = true;
+                    Toast.makeText(ActivityDetail.this, "This activity has been resolved", Toast.LENGTH_SHORT).show();
+                    buttonTakeAction.setVisibility(View.GONE);
+                    textViewInstruction.setVisibility(View.GONE);
+                }
+            }
+        });
+
+        db.collection("GuardActivity").whereEqualTo("activityID", activityID).addSnapshotListener(new EventListener<QuerySnapshot>() {
+            @Override
+            public void onEvent(@javax.annotation.Nullable QuerySnapshot queryDocumentSnapshots, @javax.annotation.Nullable FirebaseFirestoreException e) {
+                guardList.clear();
+                for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                    db.collection("Users").whereEqualTo("guardID", doc.getString("guardID")).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                        @Override
+                        public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                            Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
+                            guardList.add(guard);
+                            adapter.notifyDataSetChanged();
+                        }
+                    });
+                }
+
+            }
+        });
+
         db.collection("CCTV").whereEqualTo("cctvID", cctvID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
             @Override
             public void onComplete(@NonNull Task<QuerySnapshot> task) {
                 latitude = task.getResult().getDocuments().get(0).getDouble("cctvLatitude");
                 longitude = task.getResult().getDocuments().get(0).getDouble("cctvLongtitude");
-                activityLocation = new LatLng(latitude,longitude);
-                textViewFloorLevel.setText("Floor Level: "+task.getResult().getDocuments().get(0).get("cctvFloorLevel"));
+                activityLocation = new LatLng(latitude, longitude);
+                textViewFloorLevel.setText("Floor Level: " + task.getResult().getDocuments().get(0).get("cctvFloorLevel"));
                 db.collection("GuardActivity").whereEqualTo("activityID", activityID).whereEqualTo("guardID", guardID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                     @Override
                     public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                        if(!task.getResult().isEmpty()) {
+                        if (!task.getResult().isEmpty() && !resolved) {
                             incharge = true;
                             textViewInstruction.setText("Please follow the route to the location of abnormal activity");
                             textViewInstruction.setVisibility(View.VISIBLE);
-                            buttonTakeAction.setVisibility(View.GONE);
+                            buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
+                            buttonTakeAction.setText("Update Status");
                         }
                     }
                 });
@@ -188,27 +239,45 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         buttonTakeAction.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                pd.show();
-                textViewInstruction.setText("Please follow the route to the location of abnormal activity");
-                textViewInstruction.setVisibility(View.VISIBLE);
-                buttonTakeAction.setVisibility(View.GONE);
-                incharge = true;
-                Map<String,Object> newActivity = new HashMap<>();
-                newActivity.put("activityID", activityID);
-                newActivity.put("dateTime", FieldValue.serverTimestamp());
-                newActivity.put("guardID", guardID);
-                db.collection("GuardActivity").add(newActivity);
-                String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
-                DownloadTask downloadTask = new DownloadTask();
-                downloadTask.execute(url);
-                pd.dismiss();
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm.getActiveNetworkInfo() == null)
+                    Toast.makeText(ActivityDetail.this, "Please turn on network connection!", Toast.LENGTH_SHORT).show();
+                else {
+                    if (incharge) {
+                        Intent intent = new Intent(ActivityDetail.this, ActivityStatus.class);
+                        intent.putExtra("activityID", activityID);
+                        intent.putExtra("activityImage", imageName);
+                        intent.putExtra("activityStatus", activityStatus);
+                        startActivity(intent);
+                    } else {
+                        pd.show();
+                        textViewInstruction.setText("Please follow the route to the location of abnormal activity");
+                        textViewInstruction.setVisibility(View.VISIBLE);
+                        buttonTakeAction.setBackgroundColor(Color.GREEN);
+                        buttonTakeAction.setText("Update Status");
+                        incharge = true;
+                        Map<String, Object> newActivity = new HashMap<>();
+                        newActivity.put("activityID", activityID);
+                        newActivity.put("dateTime", FieldValue.serverTimestamp());
+                        newActivity.put("guardID", guardID);
+                        db.collection("GuardActivity").add(newActivity);
+                        db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                            @Override
+                            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                Map<String, Object> activityStatus = new HashMap<>();
+                                activityStatus.put("activityStatus", "Processing");
+                                String docID = task.getResult().getDocuments().get(0).getId();
+                                db.collection("AbnormalActivity").document(docID).update(activityStatus);
+                            }
+                        });
+                        String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
+                        DownloadTask downloadTask = new DownloadTask();
+                        downloadTask.execute(url);
+                        pd.dismiss();
+                    }
+                }
             }
         });
-
-        // Creating MarkerOptions
-
-
-
     }
 
     protected synchronized void buildGoogleApiClient() {
@@ -338,7 +407,7 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallIcon));
         if (guardLocationMarker == null) {
             guardLocationMarker = map.addMarker(markerOptions);
-            map.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+            map.moveCamera(CameraUpdateFactory.newLatLng(activityLocation));
             map.animateCamera(CameraUpdateFactory.zoomTo(16));
             pd.dismiss();
 
@@ -354,12 +423,16 @@ public class ActivityDetail extends AppCompatActivity implements OnMapReadyCallb
         options.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
         map.addMarker(options).showInfoWindow();
 
-        if (incharge) {
-            String url = getDirectionsUrl(latLng, activityLocation);
-            DownloadTask downloadTask = new DownloadTask();
-            downloadTask.execute(url);
+        if (incharge && !resolved) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if(cm.getActiveNetworkInfo()==null)
+                Toast.makeText(ActivityDetail.this,"Please turn on network connection!",Toast.LENGTH_SHORT).show();
+            else {
+                String url = getDirectionsUrl(latLng, activityLocation);
+                DownloadTask downloadTask = new DownloadTask();
+                downloadTask.execute(url);
+            }
         }
-
     }
 
 

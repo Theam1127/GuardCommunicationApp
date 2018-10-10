@@ -27,4 +27,17 @@
     <string name="take_action">Take Action</string>
     <string name="title_activity_maps">Map</string>
     <string name="api_key">AIzaSyAKpjm1TajoAVqvsaGYBmbVh0LbvkDp80E</string>
-</resources>
+    <string name="select_feedback">Select Feedback:</string>
+    <string name="resolved">Resolved</string>
+    <string name="continue_investigate">Continue to Investigate</string>
+    <string name="further_action">Require Further Action</string>
+    <string name="further_feedback">Further Feedback</string>
+    <string name="submit">Submit</string>
+    <string name="processing">Processing</string>
+    <string name="guards_handled">Guards Handled: </string>
+    <string name="call">Call</string>
+    <string name="need_more_guards">Need Backup</string>
+    <string name="schedule">Schedule</string>
+    <string name="filter">Filter:</string>
+    <string name="unsolved">Unsolved/Need Backup</string>
+=</resources>
