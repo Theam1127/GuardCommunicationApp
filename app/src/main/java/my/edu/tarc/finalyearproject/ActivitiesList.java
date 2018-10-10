@@ -2,6 +2,7 @@ package my.edu.tarc.finalyearproject;
 
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.graphics.drawable.ColorDrawable;
 import android.support.annotation.NonNull;
 import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -41,6 +42,8 @@ public class ActivitiesList extends AppCompatActivity {
         setContentView(R.layout.activity_activities_list);
 
         activitiesList = findViewById(R.id.listViewActivities);
+        activitiesList.setDivider(new ColorDrawable(0xFF000000));
+        activitiesList.setDividerHeight(4);
         filter = findViewById(R.id.spinnerFilterStatus);
         db = FirebaseFirestore.getInstance();
         activities = new ArrayList<>();
