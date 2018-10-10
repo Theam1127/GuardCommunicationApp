@@ -189,7 +189,7 @@ public class SignUp extends AppCompatActivity {
         inputID.setPositiveButton("Submit", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialogInterface, int i) {
-                String guardID = editTextGuardID.getText().toString();
+                final String guardID = editTextGuardID.getText().toString();
                 db.collection("Users").whereEqualTo("guardID", guardID).whereEqualTo("registrationToken", registrationToken).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                     @Override
                     public void onComplete(@NonNull Task<QuerySnapshot> task) {
@@ -197,6 +197,9 @@ public class SignUp extends AppCompatActivity {
                             showErrorDialog();
                         }
                         else{
+                            SharedPreferences.Editor editor = preferences.edit();
+                            editor.putString("guardID", guardID);
+                            editor.apply();
                             Intent intent = new Intent(SignUp.this, ActivitiesList.class);
                             startActivity(intent);
                             finish();
