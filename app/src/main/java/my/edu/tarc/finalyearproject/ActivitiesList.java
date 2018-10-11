@@ -1,14 +1,19 @@
 package my.edu.tarc.finalyearproject;
 
 import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.ColorDrawable;
+import android.net.ConnectivityManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -29,13 +34,14 @@ public class ActivitiesList extends MenuActivity {
     Spinner filter;
     FirebaseFirestore db;
     ProgressDialog pd;
-
+    TextView noNetwork;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_activities_list);
 
-
+        noNetwork = findViewById(R.id.textViewNetworkNotOn);
+        backgroundChecking();
 
         activitiesList = findViewById(R.id.listViewActivities);
         activitiesList.setDivider(new ColorDrawable(0xFF000000));
@@ -124,11 +130,12 @@ public class ActivitiesList extends MenuActivity {
                 pd.dismiss();
             }
         });
+    }
 
-
-
-
-
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        threadRun=false;
     }
 
     public void filterActivities(int position, String selectedItem){
@@ -149,6 +156,39 @@ public class ActivitiesList extends MenuActivity {
         activitiesList.setAdapter(adapter);
     }
 
+
+    public boolean checkNetwork(){
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        boolean connected = cm.getActiveNetworkInfo()!=null;
+        if(connected)
+            noNetwork.setVisibility(View.GONE);
+        else
+            noNetwork.setVisibility(View.VISIBLE);
+        return connected;
+    }
+
+    Handler handler = new Handler();
+    boolean threadRun = true;
+
+    private void backgroundChecking(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(threadRun){
+                    try{
+                        Thread.sleep(500);
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                checkNetwork();
+                            }
+                        });
+                    }
+                    catch(Exception e){}
+                }
+            }
+        }).start();
+    }
 
 
 }

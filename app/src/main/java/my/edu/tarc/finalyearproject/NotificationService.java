@@ -30,6 +30,7 @@ public class NotificationService extends FirebaseMessagingService {
     String imageName;
     String activityStatus;
     int cctvID;
+
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
         activityID = Integer.parseInt(remoteMessage.getData().get("id"));
@@ -90,15 +91,23 @@ public class NotificationService extends FirebaseMessagingService {
         long[] v = {500, 600000};
         Uri uri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + getApplicationContext().getPackageName() + "/" + R.raw.alarm);
         NotificationCompat.Builder builder = new NotificationCompat.Builder(NotificationService.this)
-                .setContentTitle("Abnormal Activity Detected!")
                 .setContentText("Check it now!")
                 .setWhen(System.currentTimeMillis())
                 .setAutoCancel(true)
-                .setSmallIcon(R.drawable.ic_warning_yellow_24dp)
                 .setDefaults(Notification.DEFAULT_LIGHTS)
                 .setVibrate(v)
                 .setSound(uri)
                 .setPriority(Notification.PRIORITY_HIGH);
+
+        if(activityStatus.equals("Need Backup")) {
+            builder.setSmallIcon(R.drawable.ic_caution_red_24dp);
+            builder.setContentTitle("Backup Needed for Abnormal Activity!");
+        }
+        else {
+            builder.setSmallIcon(R.drawable.ic_warning_yellow_24dp);
+            builder.setContentTitle("Abnormal Activity Detected!");
+        }
+
         Intent intent = new Intent(NotificationService.this, ActivityDetail.class);
         intent.putExtra("activityID", activityID);
         intent.putExtra("imageName", imageName);

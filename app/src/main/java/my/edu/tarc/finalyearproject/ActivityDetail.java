@@ -6,6 +6,8 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -18,6 +20,8 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
@@ -34,10 +38,20 @@ import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
 import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResolvableApiException;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
+import com.google.android.gms.location.LocationSettingsStatusCodes;
+import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -49,12 +63,15 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.FirebaseFirestoreSettings;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
@@ -72,12 +89,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,LocationListener,GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener {
-    TextView textViewActivityID, textViewFloorLevel, textViewInstruction;
+public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, NetworkStateReceiver.NetworkStateReceiverListener {
+    TextView textViewActivityID, textViewFloorLevel, textViewInstruction, textViewNoLocation, textViewCCTVDescription, textViewNoNetwork;
     ImageView imageViewActivityImage;
     Button buttonTakeAction;
-    StorageReference imageStorage;
     SupportMapFragment mapFragment;
     FirebaseFirestore db;
     private double longitude, latitude;
@@ -97,38 +113,37 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,L
     GuardsListAdapter adapter;
     List<Guard> guardList;
     ScrollView scrollView;
+    NetworkStateReceiver networkStateReceiver;
+    FusedLocationProviderClient locationProviderClient;
+    LocationCallback locationCallback;
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_detail);
+
         Intent data = getIntent();
         imageName = data.getStringExtra("imageName");
         cctvID = data.getIntExtra("cctvID", 0);
         activityID = data.getIntExtra("activityID", 0);
         activityStatus = data.getStringExtra("activityStatus");
+        textViewNoLocation = findViewById(R.id.textViewNoLocation);
+        textViewCCTVDescription = findViewById(R.id.textViewCCTVDescription);
+        textViewNoNetwork = findViewById(R.id.textViewNoNetwork);
 
-        if (ContextCompat.checkSelfPermission(ActivityDetail.this,
-                Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this,"Please grant location permission", Toast.LENGTH_SHORT).show();
-        }
+        locationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+
 
         db = FirebaseFirestore.getInstance();
+        FirebaseFirestoreSettings dbSetting = new FirebaseFirestoreSettings.Builder().setPersistenceEnabled(true).build();
+        db.setFirestoreSettings(dbSetting);
         textViewActivityID = findViewById(R.id.textViewActivityID);
         imageViewActivityImage = findViewById(R.id.imageViewActivityImage);
         textViewFloorLevel = findViewById(R.id.textViewFloorLevel);
         textViewActivityID.setText("Activity ID: " + activityID);
         textViewInstruction = findViewById(R.id.textViewInstruction);
-        imageStorage = FirebaseStorage.getInstance().getReference();
         mapFragment = (MyMapView) getSupportFragmentManager().findFragmentById(R.id.fragmentMap);
         scrollView = findViewById(R.id.scrollView);
-        ((MyMapView) getSupportFragmentManager().findFragmentById(R.id.fragmentMap)).setListener(new MyMapView.OnTouchListener() {
-            @Override
-            public void onTouch() {
-                scrollView.requestDisallowInterceptTouchEvent(true);
-            }
-        });
         positionList = new ArrayList<>();
         buttonTakeAction = findViewById(R.id.buttonTakeAction);
         guardListView = findViewById(R.id.guardsList);
@@ -136,85 +151,22 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,L
         adapter = new GuardsListAdapter(guardList, ActivityDetail.this);
         guardListView.setAdapter(adapter);
 
-
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         guardID = preferences.getString("guardID", "");
 
-
-        pd = new ProgressDialog(ActivityDetail.this);
-        pd.setMessage("Loading...");
-        pd.setCancelable(false);
-        pd.show();
-
-
-        imageStorage.child(imageName).getDownloadUrl().addOnCompleteListener(new OnCompleteListener<Uri>() {
+        ((MyMapView) getSupportFragmentManager().findFragmentById(R.id.fragmentMap)).setListener(new MyMapView.OnTouchListener() {
             @Override
-            public void onComplete(@NonNull Task<Uri> task) {
-                Uri imageUri = task.getResult();
-                Glide.with(ActivityDetail.this)
-                        .load(imageUri)
-                        .into(imageViewActivityImage);
+            public void onTouch() {
+                scrollView.requestDisallowInterceptTouchEvent(true);
             }
         });
 
-        db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).addSnapshotListener(new EventListener<QuerySnapshot>() {
-            @Override
-            public void onEvent(@javax.annotation.Nullable QuerySnapshot queryDocumentSnapshots, @javax.annotation.Nullable FirebaseFirestoreException e) {
-                if (queryDocumentSnapshots.getDocuments().get(0).get("activityStatus").toString().equals("Resolved")) {
-                    resolved = true;
-                    Toast.makeText(ActivityDetail.this, "This activity has been resolved", Toast.LENGTH_SHORT).show();
-                    buttonTakeAction.setVisibility(View.GONE);
-                    textViewInstruction.setVisibility(View.GONE);
-                }
-            }
-        });
-
-        db.collection("GuardActivity").whereEqualTo("activityID", activityID).addSnapshotListener(new EventListener<QuerySnapshot>() {
-            @Override
-            public void onEvent(@javax.annotation.Nullable QuerySnapshot queryDocumentSnapshots, @javax.annotation.Nullable FirebaseFirestoreException e) {
-                guardList.clear();
-                for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                    db.collection("Users").whereEqualTo("guardID", doc.getString("guardID")).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                        @Override
-                        public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                            if (!task.getResult().isEmpty()) {
-                                Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardID"), task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
-                                guardList.add(guard);
-                                adapter.notifyDataSetChanged();
-                            }
-                        }
-                    });
-                }
-
-            }
-        });
-
-        db.collection("CCTV").whereEqualTo("cctvID", cctvID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-            @Override
-            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                latitude = task.getResult().getDocuments().get(0).getDouble("cctvLatitude");
-                longitude = task.getResult().getDocuments().get(0).getDouble("cctvLongtitude");
-                activityLocation = new LatLng(latitude, longitude);
-                textViewFloorLevel.setText("Floor Level: " + task.getResult().getDocuments().get(0).get("cctvFloorLevel"));
-                db.collection("GuardActivity").whereEqualTo("activityID", activityID).whereEqualTo("guardID", guardID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                    @Override
-                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                        if (!task.getResult().isEmpty() && !resolved) {
-                            incharge = true;
-                            textViewInstruction.setText("Please follow the route to the location of abnormal activity");
-                            textViewInstruction.setVisibility(View.VISIBLE);
-                            buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
-                            buttonTakeAction.setText("Update Status");
-                        }
-                        pd.dismiss();
-                    }
-                });
-                mapFragment.getMapAsync(ActivityDetail.this);
-            }
-        });
-
-
+        backgroundChecking();
+        networkStateReceiver = new NetworkStateReceiver();
+        networkStateReceiver.addListener(this);
+        this.registerReceiver(networkStateReceiver, new IntentFilter(android.net.ConnectivityManager.CONNECTIVITY_ACTION));
     }
+
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
@@ -228,14 +180,19 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,L
         uiSettings.setCompassEnabled(true);
         uiSettings.setZoomControlsEnabled(true);
 
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (ContextCompat.checkSelfPermission(this,
-                    Manifest.permission.ACCESS_FINE_LOCATION)
-                    == PackageManager.PERMISSION_GRANTED) {
-                buildGoogleApiClient();
-                map.setMyLocationEnabled(true);
-            }
-        } else {
+        MarkerOptions options = new MarkerOptions();
+
+        // Setting the position of the marker
+        options.position(activityLocation);
+        options.title("Location of Abnormal Activity");
+        options.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+        map.addMarker(options).showInfoWindow();
+
+
+        map.moveCamera(CameraUpdateFactory.newLatLng(activityLocation));
+        map.animateCamera(CameraUpdateFactory.zoomTo(16));
+
+        if(checkLocationPermission()) {
             buildGoogleApiClient();
             map.setMyLocationEnabled(true);
         }
@@ -244,56 +201,47 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,L
         buttonTakeAction.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-                if (cm.getActiveNetworkInfo() == null)
-                    Toast.makeText(ActivityDetail.this, "Please turn on network connection!", Toast.LENGTH_SHORT).show();
-                else {
-                    if (incharge) {
-                        Intent intent = new Intent(ActivityDetail.this, ActivityStatus.class);
-                        intent.putExtra("activityID", activityID);
-                        intent.putExtra("activityImage", imageName);
-                        intent.putExtra("activityStatus", activityStatus);
-                        startActivity(intent);
-                    } else {
-                        if (ContextCompat.checkSelfPermission(ActivityDetail.this,
-                                Manifest.permission.ACCESS_FINE_LOCATION)
-                                == PackageManager.PERMISSION_GRANTED) {
-                            pd.show();
-                            textViewInstruction.setText("Please follow the route to the location of abnormal activity");
-                            textViewInstruction.setVisibility(View.VISIBLE);
-                            buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
-                            buttonTakeAction.setText("Update Status");
-                            incharge = true;
-                            Map<String, Object> newActivity = new HashMap<>();
-                            newActivity.put("activityID", activityID);
-                            newActivity.put("dateTime", FieldValue.serverTimestamp());
-                            newActivity.put("guardID", guardID);
-                            db.collection("GuardActivity").add(newActivity);
-                            db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                                @Override
-                                public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                                    Map<String, Object> updateStatus = new HashMap<>();
-                                    updateStatus.put("activityStatus", "Processing");
-                                    String docID = task.getResult().getDocuments().get(0).getId();
-                                    db.collection("AbnormalActivity").document(docID).update(updateStatus);
-                                    activityStatus = "Processing";
-                                }
-                            });
-                            if (ContextCompat.checkSelfPermission(ActivityDetail.this,
-                                    Manifest.permission.ACCESS_FINE_LOCATION)
-                                    != PackageManager.PERMISSION_GRANTED) {
-                                String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
-                                DownloadTask downloadTask = new DownloadTask();
-                                downloadTask.execute(url);
+                if (incharge) {
+                    Intent intent = new Intent(ActivityDetail.this, ActivityStatus.class);
+                    intent.putExtra("activityID", activityID);
+                    intent.putExtra("activityImage", imageName);
+                    intent.putExtra("activityStatus", activityStatus);
+                    startActivity(intent);
+                } else {
+                    if (checkLocationPermission()) {
+                        pd.show();
+                        textViewInstruction.setText("Please follow the route to the location of abnormal activity");
+                        textViewInstruction.setVisibility(View.VISIBLE);
+                        buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
+                        buttonTakeAction.setText("Update Status");
+                        incharge = true;
+                        Map<String, Object> newActivity = new HashMap<>();
+                        newActivity.put("activityID", activityID);
+                        newActivity.put("dateTime", FieldValue.serverTimestamp());
+                        newActivity.put("guardID", guardID);
+                        db.collection("GuardActivity").add(newActivity);
+                        db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                            @Override
+                            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                Map<String, Object> updateStatus = new HashMap<>();
+                                updateStatus.put("activityStatus", "Processing");
+                                String docID = task.getResult().getDocuments().get(0).getId();
+                                db.collection("AbnormalActivity").document(docID).update(updateStatus);
+                                activityStatus = "Processing";
                             }
-                            pd.dismiss();
-                        }
-                        else
-                            Toast.makeText(ActivityDetail.this, "Please permit location permission!",Toast.LENGTH_SHORT).show();
-                    }
+                        });
+                        String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
+                        DownloadTask downloadTask = new DownloadTask();
+                        downloadTask.execute(url);
+                    } else
+                        Toast.makeText(ActivityDetail.this, "Please grant location permission first!", Toast.LENGTH_SHORT).show();
                 }
             }
         });
+
+
+
+
     }
 
     protected synchronized void buildGoogleApiClient() {
@@ -373,91 +321,107 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,L
         locationRequest = new LocationRequest();
         locationRequest.setInterval(1500);
         locationRequest.setFastestInterval(1500);
-        locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
-
-
-        if (ContextCompat.checkSelfPermission(ActivityDetail.this,
-                Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED) {
-            LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
-            boolean gps_enabled = false;
-            boolean network_enabled = false;
-
-            try {
-                gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
-            } catch (Exception ex) {
-            }
-
-            try {
-                network_enabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-            } catch (Exception ex) {
-            }
-
-            if (!gps_enabled && !network_enabled) {
-                // notify user
-                AlertDialog.Builder dialog = new AlertDialog.Builder(ActivityDetail.this);
-                dialog.setMessage("GPS or Network is not available!");
-                dialog.setPositiveButton("Turn on location setting", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-                        // TODO Auto-generated method stub
-                        Intent myIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                        getApplicationContext().startActivity(myIntent);
-                        //get gps
+        LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+        if (checkLocationPermission()) {
+            locationCallback = new LocationCallback() {
+                @Override
+                public void onLocationResult(LocationResult locationResult) {
+                    double lat = 0, lon = 0;
+                    if (guardLocationMarker != null) {
+                        lat = guardLocationMarker.getPosition().latitude;
+                        lon = guardLocationMarker.getPosition().longitude;
                     }
-                });
-                dialog.setCancelable(false);
-                dialog.show();
-            }
-            LocationServices.FusedLocationApi.requestLocationUpdates(apiClient, locationRequest, this);
+                    LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+                    for (Location l : locationResult.getLocations()) {
+                        lat = l.getLatitude();
+                        lon = l.getLongitude();
+                    }
+                    LatLng latLng = new LatLng(lat, lon);
+                    MarkerOptions markerOptions = new MarkerOptions();
+                    markerOptions.position(latLng);
+                    markerOptions.title("Current Position");
+                    BitmapDrawable img = (BitmapDrawable) getDrawable(R.drawable.guard);
+                    Bitmap b = img.getBitmap();
+                    Bitmap smallIcon = Bitmap.createScaledBitmap(b, 120, 120, false);
+                    markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallIcon));
+                    if (guardLocationMarker == null) {
+                        guardLocationMarker = map.addMarker(markerOptions);
+
+                    } else {
+                        guardLocationMarker.setPosition(latLng);
+                    }
+
+                    if (incharge && !resolved && checkNetwork()) {
+                        String url = getDirectionsUrl(latLng, activityLocation);
+                        DownloadTask downloadTask = new DownloadTask();
+                        downloadTask.execute(url);
+                    }
+                }
+            };
+
+            LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(locationRequest);
+
+            SettingsClient client = LocationServices.getSettingsClient(this);
+            Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
+            task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
+                @Override
+                public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                    // All location settings requirements are satisfied. We now initialize location requests here.
+                    try {
+                        locationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
+                    } catch (SecurityException unlikely) {
+                    }
+                }
+            });
+
+            task.addOnFailureListener(this, new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    locationProviderClient.removeLocationUpdates(locationCallback);
+                    int statusCode = ((ApiException) e).getStatusCode();
+                    switch (statusCode) {
+                        case CommonStatusCodes.RESOLUTION_REQUIRED:
+                            // Location settings are not satisfied, but this can be fixed by showing the user a dialog.
+                            try {
+                                // Show the dialog by calling startResolutionForResult(), and check the result in onActivityResult().
+                                ResolvableApiException resolvable = (ResolvableApiException) e;
+                                resolvable.startResolutionForResult(ActivityDetail.this, 103);
+                            } catch (IntentSender.SendIntentException sendEx) {
+                                // Ignore the error.
+                            }
+                            break;
+                        case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
+                            // Location settings are not satisfied. However, we have no way to fix the settings so we won't show the dialog.
+                            break;
+                    }
+                }
+            });
         }
     }
 
     @Override
-    public void onLocationChanged(Location location) {
-        LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
-        MarkerOptions markerOptions = new MarkerOptions();
-        markerOptions.position(latLng);
-        markerOptions.title("Current Position");
-        BitmapDrawable img = (BitmapDrawable) getResources().getDrawable(R.drawable.guard);
-        Bitmap b = img.getBitmap();
-        Bitmap smallIcon = Bitmap.createScaledBitmap(b, 120, 120, false);
-        markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallIcon));
-        if (guardLocationMarker == null) {
-            guardLocationMarker = map.addMarker(markerOptions);
-            map.moveCamera(CameraUpdateFactory.newLatLng(activityLocation));
-            map.animateCamera(CameraUpdateFactory.zoomTo(16));
-
-        } else {
-            guardLocationMarker.setPosition(latLng);
-        }
-
-        MarkerOptions options = new MarkerOptions();
-
-        // Setting the position of the marker
-        options.position(activityLocation);
-        options.title("Location of Abnormal Activity");
-        options.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-        map.addMarker(options).showInfoWindow();
-
-        if (incharge && !resolved) {
-            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-            if (cm.getActiveNetworkInfo() == null)
-                Toast.makeText(ActivityDetail.this, "Please turn on network connection!", Toast.LENGTH_SHORT).show();
-            else {
-                if (ContextCompat.checkSelfPermission(this,
-                        Manifest.permission.ACCESS_FINE_LOCATION)
-                        != PackageManager.PERMISSION_GRANTED)
-                    Toast.makeText(ActivityDetail.this, "Please permit location permission!", Toast.LENGTH_SHORT).show();
-                else {
-                    String url = getDirectionsUrl(latLng, activityLocation);
-                    DownloadTask downloadTask = new DownloadTask();
-                    downloadTask.execute(url);
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+            //Location settings check result
+            case 103:
+                switch (resultCode) {
+                    case RESULT_OK:
+                        // All required changes were successfully made
+                        break;
+                    case RESULT_CANCELED:
+                        Toast.makeText(this, "GPS is essential for this application.", Toast.LENGTH_SHORT).show();;
+                        break;
+                    default:
+                        break;
                 }
-            }
+                break;
         }
     }
+
+
 
 
 
@@ -559,6 +523,8 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,L
 
             // Drawing polyline in the Google Map for the i-th route
             if (lineOptions != null) {
+                if(pd.isShowing())
+                    pd.dismiss();
                 map.addPolyline(lineOptions);
             } else {
                 Log.d("onPostExecute", "without Polylines drawn");
@@ -569,10 +535,141 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,L
     @Override
     protected void onResume() {
         super.onResume();
-        if (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED)
-            if(map!=null)
-                buildGoogleApiClient();
+        if(map!=null && checkLocationPermission())
+            buildGoogleApiClient();
+    }
+
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        threadRun=false;
+        networkStateReceiver.removeListener(this);
+        this.unregisterReceiver(networkStateReceiver);
+    }
+
+    @Override
+    public void networkAvailable() {
+        textViewCCTVDescription.setVisibility(View.VISIBLE);
+        textViewNoNetwork.setVisibility(View.GONE);
+        pd = new ProgressDialog(ActivityDetail.this);
+        pd.setMessage("Loading...");
+        pd.setCancelable(false);
+        pd.show();
+
+        StorageReference imageStorage = FirebaseStorage.getInstance().getReference();
+        imageStorage.child(imageName).getDownloadUrl().addOnCompleteListener(new OnCompleteListener<Uri>() {
+            @Override
+            public void onComplete(@NonNull Task<Uri> task) {
+                Uri imageUri = task.getResult();
+                Glide.with(ActivityDetail.this)
+                        .load(imageUri)
+                        .into(imageViewActivityImage);
+            }
+        });
+
+        db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).addSnapshotListener(new EventListener<QuerySnapshot>() {
+            @Override
+            public void onEvent(@javax.annotation.Nullable QuerySnapshot queryDocumentSnapshots, @javax.annotation.Nullable FirebaseFirestoreException e) {
+                if (queryDocumentSnapshots.getDocuments().get(0).get("activityStatus").toString().equals("Resolved")) {
+                    resolved = true;
+                    textViewInstruction.setText("This activity has been resolved");
+                    textViewInstruction.setTextColor(getResources().getColor(R.color.holo_green_dark));
+                    buttonTakeAction.setVisibility(View.GONE);
+                    pd.dismiss();
+                }
+                db.collection("CCTV").whereEqualTo("cctvID", cctvID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                    @Override
+                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                        latitude = task.getResult().getDocuments().get(0).getDouble("cctvLatitude");
+                        longitude = task.getResult().getDocuments().get(0).getDouble("cctvLongtitude");
+                        activityLocation = new LatLng(latitude, longitude);
+                        textViewCCTVDescription.setText("CCTV Description: "+task.getResult().getDocuments().get(0).getString("cctvDescription"));
+                        textViewFloorLevel.setText("Floor Level: " + task.getResult().getDocuments().get(0).get("cctvFloorLevel"));
+                        db.collection("GuardActivity").whereEqualTo("activityID", activityID).whereEqualTo("guardID", guardID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                            @Override
+                            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                if (!task.getResult().isEmpty() && !resolved) {
+                                    incharge = true;
+                                    textViewInstruction.setText("Please follow the route to the location of abnormal activity");
+                                    textViewInstruction.setVisibility(View.VISIBLE);
+                                    buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
+                                    buttonTakeAction.setText("Update Status");
+                                }
+                            }
+                        });
+                        mapFragment.getMapAsync(ActivityDetail.this);
+                    }
+                });
+
+
+            }
+
+        });
+
+        db.collection("GuardActivity").whereEqualTo("activityID", activityID).addSnapshotListener(new EventListener<QuerySnapshot>() {
+            @Override
+            public void onEvent(@javax.annotation.Nullable QuerySnapshot queryDocumentSnapshots, @javax.annotation.Nullable FirebaseFirestoreException e) {
+                guardList.clear();
+                for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                    db.collection("Users").whereEqualTo("guardID", doc.getString("guardID")).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                        @Override
+                        public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                            if (!task.getResult().isEmpty()) {
+                                Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardID"), task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
+                                guardList.add(guard);
+                                adapter.notifyDataSetChanged();
+                            }
+                        }
+                    });
+                }
+
+            }
+        });
+    }
+
+    @Override
+    public void networkUnavailable() {
+        textViewNoNetwork.setVisibility(View.VISIBLE);
+    }
+
+    private boolean checkLocationPermission(){
+        boolean turnedOn = ContextCompat.checkSelfPermission(ActivityDetail.this, Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED;
+        if(turnedOn) {
+            textViewNoLocation.setVisibility(View.GONE);
+        }
+        else
+            textViewNoLocation.setVisibility(View.VISIBLE);
+        return turnedOn;
+    }
+
+    Handler handler = new Handler();
+    boolean threadRun = true;
+
+    private void backgroundChecking(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(threadRun){
+                    try{
+                        Thread.sleep(1000);
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    checkLocationPermission();
+                                }
+                            }
+                        });
+                    }
+                    catch(Exception e){}
+                }
+            }
+        }).start();
+    }
+
+    public boolean checkNetwork(){
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        return cm.getActiveNetworkInfo()!=null;
     }
 }
