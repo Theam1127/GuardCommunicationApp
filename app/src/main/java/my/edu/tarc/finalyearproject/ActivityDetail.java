@@ -573,6 +573,7 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
             public void onEvent(@javax.annotation.Nullable QuerySnapshot queryDocumentSnapshots, @javax.annotation.Nullable FirebaseFirestoreException e) {
                 if (queryDocumentSnapshots.getDocuments().get(0).get("activityStatus").toString().equals("Resolved")) {
                     resolved = true;
+                    textViewInstruction.setVisibility(View.VISIBLE);
                     textViewInstruction.setText("This activity has been resolved");
                     textViewInstruction.setTextColor(getResources().getColor(R.color.holo_green_dark));
                     buttonTakeAction.setVisibility(View.GONE);
