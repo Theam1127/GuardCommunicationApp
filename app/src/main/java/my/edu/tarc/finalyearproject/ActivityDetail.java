@@ -172,14 +172,6 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
     public void onMapReady(GoogleMap googleMap) {
         map = googleMap;
 
-        map.setIndoorEnabled(true);
-        UiSettings uiSettings = map.getUiSettings();
-        uiSettings.setIndoorLevelPickerEnabled(true);
-        uiSettings.setMyLocationButtonEnabled(true);
-        uiSettings.setMapToolbarEnabled(true);
-        uiSettings.setCompassEnabled(true);
-        uiSettings.setZoomControlsEnabled(true);
-
         MarkerOptions options = new MarkerOptions();
 
         // Setting the position of the marker
@@ -201,14 +193,14 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
         buttonTakeAction.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (incharge) {
-                    Intent intent = new Intent(ActivityDetail.this, ActivityStatus.class);
-                    intent.putExtra("activityID", activityID);
-                    intent.putExtra("activityImage", imageName);
-                    intent.putExtra("activityStatus", activityStatus);
-                    startActivity(intent);
-                } else {
-                    if (checkLocationPermission()) {
+                if(checkLocationPermission()) {
+                    if (incharge) {
+                        Intent intent = new Intent(ActivityDetail.this, ActivityStatus.class);
+                        intent.putExtra("activityID", activityID);
+                        intent.putExtra("activityImage", imageName);
+                        intent.putExtra("activityStatus", activityStatus);
+                        startActivity(intent);
+                    } else {
                         pd.show();
                         textViewInstruction.setText("Please follow the route to the location of abnormal activity");
                         textViewInstruction.setVisibility(View.VISIBLE);
@@ -233,9 +225,9 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                         String url = getDirectionsUrl(guardLocationMarker.getPosition(), activityLocation);
                         DownloadTask downloadTask = new DownloadTask();
                         downloadTask.execute(url);
-                    } else
-                        Toast.makeText(ActivityDetail.this, "Please grant location permission first!", Toast.LENGTH_SHORT).show();
-                }
+                    }
+                } else
+                    Toast.makeText(ActivityDetail.this, "Please grant location permission first!", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -324,81 +316,90 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
         LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
-        if (checkLocationPermission()) {
-            locationCallback = new LocationCallback() {
-                @Override
-                public void onLocationResult(LocationResult locationResult) {
-                    double lat = 0, lon = 0;
-                    if (guardLocationMarker != null) {
-                        lat = guardLocationMarker.getPosition().latitude;
-                        lon = guardLocationMarker.getPosition().longitude;
-                    }
-                    LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
-                    for (Location l : locationResult.getLocations()) {
-                        lat = l.getLatitude();
-                        lon = l.getLongitude();
-                    }
-                    LatLng latLng = new LatLng(lat, lon);
-                    MarkerOptions markerOptions = new MarkerOptions();
-                    markerOptions.position(latLng);
-                    markerOptions.title("Current Position");
-                    BitmapDrawable img = (BitmapDrawable) getDrawable(R.drawable.guard);
-                    Bitmap b = img.getBitmap();
-                    Bitmap smallIcon = Bitmap.createScaledBitmap(b, 120, 120, false);
-                    markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallIcon));
-                    if (guardLocationMarker == null) {
-                        guardLocationMarker = map.addMarker(markerOptions);
-
-                    } else {
-                        guardLocationMarker.setPosition(latLng);
-                    }
-
-                    if (incharge && !resolved && checkNetwork()) {
-                        String url = getDirectionsUrl(latLng, activityLocation);
-                        DownloadTask downloadTask = new DownloadTask();
-                        downloadTask.execute(url);
-                    }
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                double lat = 0, lon = 0;
+                if (guardLocationMarker != null) {
+                    lat = guardLocationMarker.getPosition().latitude;
+                    lon = guardLocationMarker.getPosition().longitude;
                 }
-            };
-
-            LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(locationRequest);
-
-            SettingsClient client = LocationServices.getSettingsClient(this);
-            Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
-            task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
-                @Override
-                public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
-                    // All location settings requirements are satisfied. We now initialize location requests here.
-                    try {
-                        locationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
-                    } catch (SecurityException unlikely) {
-                    }
+                LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+                for (Location l : locationResult.getLocations()) {
+                    lat = l.getLatitude();
+                    lon = l.getLongitude();
                 }
-            });
+                LatLng latLng = new LatLng(lat, lon);
+                MarkerOptions markerOptions = new MarkerOptions();
+                markerOptions.position(latLng);
+                markerOptions.title("Current Position");
+                BitmapDrawable img = (BitmapDrawable) getDrawable(R.drawable.guard);
+                Bitmap b = img.getBitmap();
+                Bitmap smallIcon = Bitmap.createScaledBitmap(b, 120, 120, false);
+                markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallIcon));
+                if (guardLocationMarker == null) {
+                    if(checkLocationPermission())
+                        map.setMyLocationEnabled(true);
+                    map.setIndoorEnabled(true);
+                    UiSettings uiSettings = map.getUiSettings();
+                    uiSettings.setIndoorLevelPickerEnabled(true);
+                    uiSettings.setMyLocationButtonEnabled(true);
+                    uiSettings.setMapToolbarEnabled(true);
+                    uiSettings.setCompassEnabled(true);
+                    uiSettings.setZoomControlsEnabled(true);
 
-            task.addOnFailureListener(this, new OnFailureListener() {
-                @Override
-                public void onFailure(@NonNull Exception e) {
-                    locationProviderClient.removeLocationUpdates(locationCallback);
-                    int statusCode = ((ApiException) e).getStatusCode();
-                    switch (statusCode) {
-                        case CommonStatusCodes.RESOLUTION_REQUIRED:
-                            // Location settings are not satisfied, but this can be fixed by showing the user a dialog.
-                            try {
-                                // Show the dialog by calling startResolutionForResult(), and check the result in onActivityResult().
-                                ResolvableApiException resolvable = (ResolvableApiException) e;
-                                resolvable.startResolutionForResult(ActivityDetail.this, 103);
-                            } catch (IntentSender.SendIntentException sendEx) {
-                                // Ignore the error.
-                            }
-                            break;
-                        case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
-                            // Location settings are not satisfied. However, we have no way to fix the settings so we won't show the dialog.
-                            break;
-                    }
+                    guardLocationMarker = map.addMarker(markerOptions);
+
+                } else {
+                    guardLocationMarker.setPosition(latLng);
                 }
-            });
-        }
+
+                if (incharge && !resolved && checkNetwork()) {
+                    String url = getDirectionsUrl(latLng, activityLocation);
+                    DownloadTask downloadTask = new DownloadTask();
+                    downloadTask.execute(url);
+                }
+            }
+        };
+
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(locationRequest);
+
+        SettingsClient client = LocationServices.getSettingsClient(this);
+        Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
+        task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
+            @Override
+            public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                // All location settings requirements are satisfied. We now initialize location requests here.
+                try {
+                    locationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
+                } catch (SecurityException unlikely) {
+                }
+            }
+        });
+
+        task.addOnFailureListener(this, new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                locationProviderClient.removeLocationUpdates(locationCallback);
+                int statusCode = ((ApiException) e).getStatusCode();
+                switch (statusCode) {
+                    case CommonStatusCodes.RESOLUTION_REQUIRED:
+                        // Location settings are not satisfied, but this can be fixed by showing the user a dialog.
+                        try {
+                            // Show the dialog by calling startResolutionForResult(), and check the result in onActivityResult().
+                            ResolvableApiException resolvable = (ResolvableApiException) e;
+                            resolvable.startResolutionForResult(ActivityDetail.this, 103);
+                        } catch (IntentSender.SendIntentException sendEx) {
+                            // Ignore the error.
+                        }
+                        break;
+                    case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
+                        // Location settings are not satisfied. However, we have no way to fix the settings so we won't show the dialog.
+                        break;
+                }
+            }
+        });
+
     }
 
     @Override
@@ -409,7 +410,8 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
             case 103:
                 switch (resultCode) {
                     case RESULT_OK:
-                        // All required changes were successfully made
+                        map.moveCamera(CameraUpdateFactory.newLatLng(activityLocation));
+                        map.animateCamera(CameraUpdateFactory.zoomTo(16));
                         break;
                     case RESULT_CANCELED:
                         Toast.makeText(this, "GPS is essential for this application.", Toast.LENGTH_SHORT).show();;
@@ -557,6 +559,7 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
         pd.setCancelable(false);
         pd.show();
 
+
         StorageReference imageStorage = FirebaseStorage.getInstance().getReference();
         imageStorage.child(imageName).getDownloadUrl().addOnCompleteListener(new OnCompleteListener<Uri>() {
             @Override
@@ -596,10 +599,13 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                                     textViewInstruction.setVisibility(View.VISIBLE);
                                     buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
                                     buttonTakeAction.setText("Update Status");
+                                    if(!checkLocationPermission())
+                                        pd.dismiss();
                                 }
                             }
                         });
                         mapFragment.getMapAsync(ActivityDetail.this);
+
                     }
                 });
 
@@ -631,6 +637,12 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
 
     @Override
     public void networkUnavailable() {
+        buttonTakeAction.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Toast.makeText(ActivityDetail.this, "Please turn on internet connection!", Toast.LENGTH_SHORT).show();
+            }
+        });
         textViewNoNetwork.setVisibility(View.VISIBLE);
     }
 
