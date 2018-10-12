@@ -60,11 +60,11 @@ public class ActivitiesList extends MenuActivity {
         pd = new ProgressDialog(ActivitiesList.this);
         pd.setCancelable(false);
         pd.setMessage("Loading...");
+        pd.show();
 
         db.collection("AbnormalActivity").orderBy("activityID").addSnapshotListener(new EventListener<QuerySnapshot>() {
             @Override
             public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
-                pd.show();
                 activities.clear();
                 if(!queryDocumentSnapshots.isEmpty()) {
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
@@ -127,7 +127,8 @@ public class ActivitiesList extends MenuActivity {
 
 
                 }
-                pd.dismiss();
+                if(pd.isShowing())
+                    pd.dismiss();
             }
         });
     }
@@ -189,6 +190,8 @@ public class ActivitiesList extends MenuActivity {
             }
         }).start();
     }
+
+
 
 
 }

@@ -558,6 +558,13 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
         pd.setMessage("Loading...");
         pd.setCancelable(false);
         pd.show();
+        pd.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialogInterface) {
+                if(scrollView.getScrollY()!=0)
+                    scrollView.fullScroll(ScrollView.FOCUS_UP);
+            }
+        });
 
 
         StorageReference imageStorage = FirebaseStorage.getInstance().getReference();
@@ -599,9 +606,9 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                                     textViewInstruction.setVisibility(View.VISIBLE);
                                     buttonTakeAction.setBackgroundColor(getResources().getColor(R.color.holo_green_dark));
                                     buttonTakeAction.setText("Update Status");
-                                    if(!checkLocationPermission())
-                                        pd.dismiss();
                                 }
+                                if(!incharge || !checkLocationPermission())
+                                    pd.dismiss();
                             }
                         });
                         mapFragment.getMapAsync(ActivityDetail.this);
@@ -626,6 +633,8 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                                 Guard guard = new Guard(task.getResult().getDocuments().get(0).getString("guardID"), task.getResult().getDocuments().get(0).getString("guardName"), task.getResult().getDocuments().get(0).get("phone").toString());
                                 guardList.add(guard);
                                 adapter.notifyDataSetChanged();
+                                if(scrollView.getScrollY()!=0)
+                                    scrollView.fullScroll(ScrollView.FOCUS_UP);
                             }
                         }
                     });
@@ -633,6 +642,7 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
 
             }
         });
+
     }
 
     @Override

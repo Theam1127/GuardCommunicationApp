@@ -21,7 +21,9 @@ import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
+import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 
 public class NotificationService extends FirebaseMessagingService {
     SharedPreferences preferences;
@@ -53,10 +55,12 @@ public class NotificationService extends FirebaseMessagingService {
                         int duration = Integer.parseInt(task.getResult().getDocuments().get(0).get("dutyDuration").toString());
 
                         Date startDate = start.toDate();
-                        Date now = new Date();
+                        Calendar now = Calendar.getInstance();
 
-                        if (now.getHours() >= startDate.getHours() && now.getHours()<=startDate.getHours()+duration) {
-                            if(activityStatus.equals("Require Further Action")){
+                        Calendar calendarStart = Calendar.getInstance();
+                        calendarStart.setTime(startDate);
+                        if (now.get(Calendar.HOUR_OF_DAY) >= calendarStart.get(Calendar.HOUR_OF_DAY) && now.get(Calendar.HOUR_OF_DAY)<=calendarStart.get(Calendar.HOUR_OF_DAY)+duration) {
+                            if(activityStatus.equals("Need Backup")){
                                 sendNotification();
                             }
                             else {
