@@ -61,6 +61,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
@@ -116,6 +117,7 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
     NetworkStateReceiver networkStateReceiver;
     FusedLocationProviderClient locationProviderClient;
     LocationCallback locationCallback;
+    Polyline polyline;
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
@@ -527,7 +529,9 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
             if (lineOptions != null) {
                 if(pd.isShowing())
                     pd.dismiss();
-                map.addPolyline(lineOptions);
+                if(polyline!=null)
+                    polyline.remove();
+                polyline = map.addPolyline(lineOptions);
             } else {
                 Log.d("onPostExecute", "without Polylines drawn");
             }

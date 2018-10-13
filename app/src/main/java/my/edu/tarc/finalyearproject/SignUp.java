@@ -240,8 +240,10 @@ public class SignUp extends AppCompatActivity {
                         }
                     });
                 }
-                else
+                else {
                     Toast.makeText(SignUp.this, "No internet access!", Toast.LENGTH_SHORT).show();
+                    alert.show();
+                }
             }
         });
         inputID.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
