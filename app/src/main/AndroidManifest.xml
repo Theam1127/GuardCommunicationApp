@@ -20,14 +20,18 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <uses-library android:name="org.apache.http.legacy" android:required="false" />
-        <activity android:name=".SignUp">
+        <activity android:name=".SignUp"
+            android:screenOrientation="portrait"
+            android:label="Sign Up">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ActivitiesList">
+        <activity android:name=".ActivitiesList"
+            android:screenOrientation="portrait"
+            android:label="All Activities">
             <intent-filter>
                 <action android:name="ActivitiesList" />
 
@@ -43,7 +47,9 @@
             </intent-filter>
         </service>
 
-        <activity android:name=".ActivityDetail" />
+        <activity android:name=".ActivityDetail"
+            android:label="Details"
+            android:screenOrientation="portrait"/>
         <!--
              The API key for Google Maps-based APIs is defined as a string resource.
              (See the file "res/values/google_maps_api.xml").
@@ -56,9 +62,12 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/api_key" />
 
-        <activity android:name=".ActivityStatus" />
+        <activity android:name=".ActivityStatus"
+            android:label="Status"
+            android:screenOrientation="portrait"/>
         <activity
-            android:name=".MenuActivity"></activity>
+            android:name=".MenuActivity"
+            android:screenOrientation="portrait"></activity>
 
         <receiver android:name=".NetworkStateReceiver"/>
 

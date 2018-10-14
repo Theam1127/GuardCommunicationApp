@@ -52,4 +52,5 @@
     <string name="no_network">No Internet Access!</string>
     <string name="location_permission">Location Permission is not Granted!</string>
     <string name="no_internet_show_cache">No Internet Connection! Showing Cached Data</string>
+    <string name="optional">(optional)</string>
 </resources>
