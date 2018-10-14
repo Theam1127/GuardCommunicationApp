@@ -22,7 +22,7 @@
         <uses-library android:name="org.apache.http.legacy" android:required="false" />
         <activity android:name=".SignUp"
             android:screenOrientation="portrait"
-            android:label="Sign Up">
+            android:theme="@style/AppTheme.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
