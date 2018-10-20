@@ -317,7 +317,6 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
         locationRequest.setFastestInterval(1500);
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
-        LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
         locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
@@ -326,7 +325,6 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                     lat = guardLocationMarker.getPosition().latitude;
                     lon = guardLocationMarker.getPosition().longitude;
                 }
-                LocationManager lm = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
                 for (Location l : locationResult.getLocations()) {
                     lat = l.getLatitude();
                     lon = l.getLongitude();
