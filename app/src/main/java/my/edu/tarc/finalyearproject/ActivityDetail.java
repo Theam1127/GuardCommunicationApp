@@ -175,7 +175,6 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
         map = googleMap;
 
         MarkerOptions options = new MarkerOptions();
-
         // Setting the position of the marker
         options.position(activityLocation);
         options.title("Location of Abnormal Activity");
@@ -214,7 +213,9 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                         newActivity.put("dateTime", FieldValue.serverTimestamp());
                         newActivity.put("guardID", guardID);
                         db.collection("GuardActivity").add(newActivity);
-                        db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                        db.collection("AbnormalActivity")
+                                .whereEqualTo("activityID", activityID)
+                                .get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                             @Override
                             public void onComplete(@NonNull Task<QuerySnapshot> task) {
                                 Map<String, Object> updateStatus = new HashMap<>();
@@ -252,22 +253,21 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
 
         // Origin of route
         String str_origin = "origin=" + origin.latitude + "," + origin.longitude;
-
         // Destination of route
         String str_dest = "destination=" + dest.latitude + "," + dest.longitude;
-
         // Sensor enabled
         String sensor = "sensor=false";
-
         // Building the parameters to the web service
         String parameters = str_origin + "&" + str_dest + "&" + sensor;
-
         // Output format
         String output = "json";
-
         // Building the url to the web service
-        String url = "https://maps.googleapis.com/maps/api/directions/" + output + "?" + parameters + "&key=" + getString(R.string.google_maps_key);
-
+        String url = "https://maps.googleapis.com/maps/api/directions/"
+                + output
+                + "?"
+                + parameters
+                + "&key="
+                + getString(R.string.google_maps_key);
         return url;
     }
 
@@ -505,24 +505,17 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                 // Fetching all the points in i-th route
                 for (int j = 0; j < path.size(); j++) {
                     HashMap<String, String> point = path.get(j);
-
                     double lat = Double.parseDouble(point.get("lat"));
                     double lng = Double.parseDouble(point.get("lng"));
                     Log.d("lat", ""+lat);
                     LatLng position = new LatLng(lat, lng);
-
                     points.add(position);
                 }
-                Log.d("points", ""+points);
                 // Adding all the points in the route to LineOptions
                 lineOptions.addAll(points);
                 lineOptions.width(10);
                 lineOptions.color(Color.BLUE);
-
-                Log.d("onPostExecute", "onPostExecute lineoptions decoded");
-
             }
-
             // Drawing polyline in the Google Map for the i-th route
             if (lineOptions != null) {
                 if(pd.isShowing())
@@ -530,8 +523,6 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                 if(polyline!=null)
                     polyline.remove();
                 polyline = map.addPolyline(lineOptions);
-            } else {
-                Log.d("onPostExecute", "without Polylines drawn");
             }
         }
     }
@@ -591,14 +582,34 @@ public class ActivityDetail extends MenuActivity implements OnMapReadyCallback,G
                     buttonTakeAction.setVisibility(View.GONE);
                     pd.dismiss();
                 }
-                db.collection("CCTV").whereEqualTo("cctvID", cctvID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                db.collection("CCTV")
+                        .whereEqualTo("cctvID", cctvID)
+                        .get()
+                        .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                     @Override
                     public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                        latitude = task.getResult().getDocuments().get(0).getDouble("cctvLatitude");
-                        longitude = task.getResult().getDocuments().get(0).getDouble("cctvLongtitude");
-                        activityLocation = new LatLng(latitude, longitude);
-                        textViewCCTVDescription.setText("CCTV Description: "+task.getResult().getDocuments().get(0).getString("cctvDescription"));
-                        textViewFloorLevel.setText("Floor Level: " + task.getResult().getDocuments().get(0).get("cctvFloorLevel"));
+
+                            latitude = task.getResult()
+                                .getDocuments()
+                                .get(0)
+                                .getDouble("cctvLatitude");
+                            longitude = task.getResult()
+                                .getDocuments()
+                                .get(0)
+                                .getDouble("cctvLongtitude");
+                            activityLocation = new LatLng(latitude, longitude);
+
+                        textViewCCTVDescription.setText("CCTV Description: "+task.
+                                getResult().
+                                getDocuments().
+                                get(0).
+                                getString("cctvDescription"));
+                        textViewFloorLevel.setText("Floor Level: " + task.
+                                getResult().
+                                getDocuments().
+                                get(0).
+                                get("cctvFloorLevel"));
+
                         db.collection("GuardActivity").whereEqualTo("activityID", activityID).whereEqualTo("guardID", guardID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                             @Override
                             public void onComplete(@NonNull Task<QuerySnapshot> task) {

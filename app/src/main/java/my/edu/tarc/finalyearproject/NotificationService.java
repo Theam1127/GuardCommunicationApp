@@ -44,45 +44,70 @@ public class NotificationService extends FirebaseMessagingService {
         db = FirebaseFirestore.getInstance();
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         String guardID = preferences.getString("guardID", "");
-        db.collection("Users").whereEqualTo("guardID", guardID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-            @Override
-            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                int scheduleID = Integer.parseInt(task.getResult().getDocuments().get(0).get("scheduleID").toString());
-                db.collection("Schedule").whereEqualTo("scheduleID", scheduleID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+        db.collection("Users")
+                .whereEqualTo("guardID", guardID)
+                .get()
+                .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                     @Override
                     public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                        Timestamp start = task.getResult().getDocuments().get(0).getTimestamp("dutyStart");
-                        int duration = Integer.parseInt(task.getResult().getDocuments().get(0).get("dutyDuration").toString());
+                        int scheduleID = Integer.parseInt(task.getResult()
+                                .getDocuments()
+                                .get(0)
+                                .get("scheduleID")
+                                .toString());
 
-                        Date startDate = start.toDate();
-                        Calendar now = Calendar.getInstance();
-
-                        Calendar calendarStart = Calendar.getInstance();
-                        calendarStart.setTime(startDate);
-                        if (now.get(Calendar.HOUR_OF_DAY) >= calendarStart.get(Calendar.HOUR_OF_DAY) && now.get(Calendar.HOUR_OF_DAY)<=calendarStart.get(Calendar.HOUR_OF_DAY)+duration) {
-                            if(activityStatus.equals("Need Backup")){
-                                sendNotification();
-                            }
-                            else {
-                                String floorLevel = task.getResult().getDocuments().get(0).getString("dutyFloorLevel");
-                                db.collection("CCTV").whereEqualTo("cctvFloorLevel", floorLevel).whereEqualTo("cctvID", cctvID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                        db.collection("Schedule")
+                                .whereEqualTo("scheduleID", scheduleID)
+                                .get()
+                                .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                                     @Override
                                     public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                                        if (!task.getResult().isEmpty()) {
-                                            {
+                                        Timestamp start = task.getResult()
+                                                .getDocuments()
+                                                .get(0)
+                                                .getTimestamp("dutyStart");
+
+                                        int duration = Integer.parseInt(task.getResult()
+                                                .getDocuments()
+                                                .get(0)
+                                                .get("dutyDuration")
+                                                .toString());
+
+                                        Date startDate = start.toDate();
+                                        Calendar now = Calendar.getInstance();
+                                        Calendar calendarStart = Calendar.getInstance();
+                                        calendarStart.setTime(startDate);
+                                        if (now.get(Calendar.HOUR_OF_DAY) >= calendarStart.get(Calendar.HOUR_OF_DAY)
+                                                && now.get(Calendar.HOUR_OF_DAY) <= calendarStart.get(Calendar.HOUR_OF_DAY) + duration) {
+                                            if (activityStatus.equals("Need Backup")) {
                                                 sendNotification();
+                                            } else {
+                                                String floorLevel = task
+                                                        .getResult()
+                                                        .getDocuments()
+                                                        .get(0)
+                                                        .getString("dutyFloorLevel");
+
+                                                db.collection("CCTV")
+                                                        .whereEqualTo("cctvFloorLevel", floorLevel)
+                                                        .whereEqualTo("cctvID", cctvID).get()
+                                                        .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                                            @Override
+                                                            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                                                if (!task.getResult().isEmpty()) {
+                                                                    {
+                                                                        sendNotification();
+                                                                    }
+                                                                }
+                                                            }
+                                                        });
                                             }
                                         }
                                     }
+
                                 });
-                            }
-                        }
                     }
-
                 });
-
-            }
-        });
 
     }
 
@@ -93,8 +118,12 @@ public class NotificationService extends FirebaseMessagingService {
 
     private void sendNotification(){
         long[] v = {500, 600000};
-        Uri uri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + getApplicationContext().getPackageName() + "/" + R.raw.alarm);
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(NotificationService.this)
+        Uri uri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE
+                + "://" + getApplicationContext().getPackageName()
+                + "/" + R.raw.alarm);
+
+        NotificationCompat.Builder builder =
+                new NotificationCompat.Builder(NotificationService.this)
                 .setContentText("Check it now!")
                 .setWhen(System.currentTimeMillis())
                 .setAutoCancel(true)
@@ -117,12 +146,15 @@ public class NotificationService extends FirebaseMessagingService {
         intent.putExtra("imageName", imageName);
         intent.putExtra("activityStatus", activityStatus);
         intent.putExtra("cctvID", cctvID);
-        PendingIntent pi = PendingIntent.getActivity(NotificationService.this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
-
+        PendingIntent pi = PendingIntent.getActivity(NotificationService.this,
+                0,
+                intent,
+                PendingIntent.FLAG_ONE_SHOT);
         builder.setContentIntent(pi);
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "MH24_SCREENLOCK");
         wl.acquire(10000);
+
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         manager.notify(0, builder.build());
     }

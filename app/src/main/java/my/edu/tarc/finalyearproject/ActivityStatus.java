@@ -1,9 +1,11 @@
 package my.edu.tarc.finalyearproject;
 
 import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -32,7 +34,7 @@ public class ActivityStatus extends MenuActivity {
     Button buttonResolved, buttonContinue, buttonFurther, buttonSubmit;
     EditText editTextFeedback;
     StorageReference imageStorage;
-    String currentStatus;
+    String currentStatus = "";
     ProgressDialog pd;
 
     @Override
@@ -109,40 +111,46 @@ public class ActivityStatus extends MenuActivity {
         buttonSubmit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if(currentStatus.isEmpty())
-                    Toast.makeText(ActivityStatus.this, "Please select a feedback!", Toast.LENGTH_SHORT).show();
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if(cm.getActiveNetworkInfo()==null){
+                    Toast.makeText(ActivityStatus.this, "Please enable network connection!", Toast.LENGTH_SHORT).show();
+                }
                 else {
-                    pd.show();
-                    final String feedback = editTextFeedback.getText().toString().isEmpty() ? "" : editTextFeedback.getText().toString();
-                    final FirebaseFirestore db = FirebaseFirestore.getInstance();
-                    db.collection("Feedback").orderBy("feedbackID").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                        @Override
-                        public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                            int id = 1;
-                            if(!task.getResult().isEmpty())
-                                id = Integer.parseInt(task.getResult().getDocuments().get(task.getResult().getDocuments().size() - 1).get("feedbackID").toString());
-                            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-                            String guardID = preferences.getString("guardID", "");
-                            Map<String, Object> newFeedback = new HashMap<>();
-                            newFeedback.put("activityID", activityID);
-                            newFeedback.put("feedbackContent", feedback);
-                            newFeedback.put("feedbackID", id);
-                            newFeedback.put("guardID", guardID);
-                            db.collection("Feedback").add(newFeedback);
-                            db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                                @Override
-                                public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                                    String docID = task.getResult().getDocuments().get(0).getId();
-                                    Map<String, Object> updateStatus = new HashMap<>();
-                                    updateStatus.put("activityStatus", currentStatus);
-                                    db.collection("AbnormalActivity").document(docID).update(updateStatus);
-                                    pd.dismiss();
-                                    Toast.makeText(ActivityStatus.this, "Feedback Submitted", Toast.LENGTH_SHORT).show();
-                                    finish();
-                                }
-                            });
-                        }
-                    });
+                    if (currentStatus.equals(""))
+                        Toast.makeText(ActivityStatus.this, "Please select a feedback!", Toast.LENGTH_SHORT).show();
+                    else {
+                        pd.show();
+                        final String feedback = editTextFeedback.getText().toString().isEmpty() ? "" : editTextFeedback.getText().toString();
+                        final FirebaseFirestore db = FirebaseFirestore.getInstance();
+                        db.collection("Feedback").orderBy("feedbackID").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                            @Override
+                            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                int id = 1;
+                                if (!task.getResult().isEmpty())
+                                    id = Integer.parseInt(task.getResult().getDocuments().get(task.getResult().getDocuments().size() - 1).get("feedbackID").toString());
+                                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                                String guardID = preferences.getString("guardID", "");
+                                Map<String, Object> newFeedback = new HashMap<>();
+                                newFeedback.put("activityID", activityID);
+                                newFeedback.put("feedbackContent", feedback);
+                                newFeedback.put("feedbackID", id);
+                                newFeedback.put("guardID", guardID);
+                                db.collection("Feedback").add(newFeedback);
+                                db.collection("AbnormalActivity").whereEqualTo("activityID", activityID).get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                    @Override
+                                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                        String docID = task.getResult().getDocuments().get(0).getId();
+                                        Map<String, Object> updateStatus = new HashMap<>();
+                                        updateStatus.put("activityStatus", currentStatus);
+                                        db.collection("AbnormalActivity").document(docID).update(updateStatus);
+                                        pd.dismiss();
+                                        Toast.makeText(ActivityStatus.this, "Feedback Submitted", Toast.LENGTH_SHORT).show();
+                                        finish();
+                                    }
+                                });
+                            }
+                        });
+                    }
                 }
             }
         });
