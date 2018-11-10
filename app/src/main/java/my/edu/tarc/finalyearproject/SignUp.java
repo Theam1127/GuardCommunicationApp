@@ -16,6 +16,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.text.InputType;
+import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -37,10 +38,13 @@ import com.google.firebase.iid.InstanceIdResult;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 
 public class SignUp extends AppCompatActivity {
 
@@ -82,7 +86,7 @@ public class SignUp extends AppCompatActivity {
         editTextPhone = findViewById(R.id.editTextPhone);
 
 
-        db.collection("Schedule").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+        db.collection("Schedule").orderBy("dutyStart").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
             @Override
             public void onComplete(@NonNull Task<QuerySnapshot> task) {
                 if(!task.getResult().isEmpty()){
@@ -90,11 +94,14 @@ public class SignUp extends AppCompatActivity {
                     for(DocumentSnapshot doc : task.getResult()){
                         Timestamp dutyStart = doc.getTimestamp("dutyStart");
                         Timestamp dutyEnd = doc.getTimestamp("dutyEnd");
-                        Date dateStart = dutyStart.toDate();
-                        Date dateEnd = dutyEnd.toDate();
-                        SimpleDateFormat df = new SimpleDateFormat("hh:mm a");
-                        String start = df.format(dateStart);
-                        String end = df.format(dateEnd);
+                        Calendar cal = Calendar.getInstance();
+                        cal.setTime(dutyStart.toDate());
+                        cal.add(Calendar.HOUR_OF_DAY,8);
+                        SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
+                        String start = sdf.format(cal.getTime());
+                        cal.setTime(dutyEnd.toDate());
+                        cal.add(Calendar.HOUR_OF_DAY,8);
+                        String end = sdf.format(cal.getTime());
                         String schedule = start+" - "+end;
                         schedules.add(schedule);
                         scheduleAdapter.notifyDataSetChanged();
